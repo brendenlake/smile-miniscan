@@ -616,3 +616,127 @@ trials[0].append([
 
 If no `path` field is provided, the stepper will use default sequential
 numbering for node identifiers.
+
+## Dynamically building steps
+
+Sometimes you may want to build steps incrementally or dynamically. This can be
+useful if you want to add steps to the stepper after the task has started. For
+example, you may want to add steps to the stepper after the user has completed a
+task, or conditionally based on the user's response. Here is an example of a
+simple component that steps through 10 steps which are added incrementally. This
+example leverages several of the concepts above including the use of the `id`
+field to control the node identifiers in the state machine, and the use of the
+`persist` object to persist data across browser reloads. The nice thing about
+this is that if the user reloads the page, the task will resume from the same
+step they were on.
+
+```vue
+<script setup>
+// An Incremental Test
+
+// import and initalize smile API
+import useViewAPI from '@/core/composables/useViewAPI'
+const api = useViewAPI()
+
+// import the constrained task window layout and a nice button
+import { ConstrainedTaskWindow } from '@/uikit/layouts'
+import { Button } from '@/uikit/components/ui/button'
+
+// initialize the persistent variables
+// these will persist across browser reloads
+if (!api.persist.isDefined('i')) {
+  api.persist.i = 0 // the current trial number
+  api.persist.nTrials = 10 // the number of regular trials (feedback is added after)
+}
+
+// add the first trial to the steps
+// note that the id is the trial number and the val is the value of the trial
+// each trial needs to be unique so we use the trial number as the id
+const trials = api.steps.append({
+  id: 'trial' + String(api.persist.i),
+  val: api.persist.i,
+})
+
+// start the timer
+if (!api.isTimerStarted()) {
+  api.startTimer()
+}
+
+// Handle the key presses for the task
+const stop = api.onKeyDown(
+  ['n', 'N'], // list of keys to listen for
+  (e) => {
+    // if we are not at the feedback trial, increment the trial number and add a new trial
+    if (api.stepIndex < api.persist.nTrials) {
+      e.preventDefault()
+      // record the reaction time and the response
+      const reactionTime = api.elapsedTime()
+      api.stepData.rt = reactionTime
+      api.stepData.response = e.key
+      api.recordStep() // record the step data
+
+      api.persist.i++ // increment the trial number
+      // add the new trial to the steps (feedback after all regular trials)
+      const isFeedback = api.persist.i === api.persist.nTrials
+      trials.append({
+        id: isFeedback ? 'feedback' : 'trial' + String(api.persist.i),
+        val: api.persist.i,
+      })
+      // go to the next trial
+      api.goNextStep()
+    }
+  },
+  { dedupe: true }
+)
+
+function finish() {
+  // record the reaction time for the feedback screen
+  const reactionTime = api.elapsedTime()
+  api.stepData.rt = reactionTime
+  api.stepData.response = 'finish'
+  api.recordStep()
+  api.goNextView()
+}
+</script>
+
+<template>
+  <ConstrainedTaskWindow
+    variant="ghost"
+    :responsiveUI="api.config.responsiveUI"
+    :width="api.config.windowsizerRequest.width"
+    :height="api.config.windowsizerRequest.height"
+  >
+    <div class="page prevent-select">
+      <!-- Show feedback trial (after all regular trials) -->
+      <div class="text-center" v-if="api.stepIndex === api.persist.nTrials">
+        <h1 class="text-2xl font-bold mb-4">Feedback</h1>
+        <p class="text-lg text-muted-foreground mt-4 mb-6">
+          You completed all the trials!
+        </p>
+        <Button class="button is-success" id="finish" @click="finish()">
+          Finish &nbsp;
+          <i-fa6-solid-arrow-right />
+        </Button>
+      </div>
+
+      <!-- Show this for regular trials -->
+      <div class="text-center" v-else>
+        <h1 class="text-2xl font-bold mb-4">
+          Increment {{ api.stepData.val }}
+        </h1>
+        <p class="text-lg text-muted-foreground mt-4">
+          Type "N" to increment the value.
+        </p>
+      </div>
+    </div>
+  </ConstrainedTaskWindow>
+</template>
+```
+
+Here is a video of the example above in action showing the steps being added to
+the side bar incrementally and also the state reloading after a page reload.
+
+<video controls autoplay loop muted poster="/images/incremental_stepper_mov.png" style="max-width:100%;width:700px;">
+  <source src="/videos/incremental_stepper.mov" type="video/mp4">
+  Your browser does not support the video tag.
+</video>
