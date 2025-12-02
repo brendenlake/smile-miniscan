@@ -53,7 +53,7 @@ api.setAutofill(autofill)
  */
 function finish() {
   api.recordForm('feedbackForm', api.persist.forminfo)
-  api.saveData(true) // Force a data save
+  api.saveData()
   api.goNextView()
 }
 </script>
@@ -168,7 +168,7 @@ function finish() {
           <!-- Form submission section -->
           <hr class="border-border my-6" />
           <div class="flex justify-end">
-            <Button variant="default" :disabled="!complete" @click="finish()"> I'm finished </Button>
+            <Button variant="default" :disabled="!complete" @click="finish()"> Upload my complete data </Button>
           </div>
         </div>
       </template>
