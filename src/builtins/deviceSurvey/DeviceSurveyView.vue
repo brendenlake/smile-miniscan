@@ -32,6 +32,7 @@ if (!api.persist.isDefined('forminfo')) {
     pointer: '', // Self-reported pointing device (mouse, trackpad, touchscreen)
     assistive_technology: '', // Self-reported assistive technology
     tools: '', // Self-report of tools
+    ai: '', // Self-report of AI usage
   })
 }
 
@@ -55,7 +56,8 @@ const page_two_complete = computed(
   () =>
     api.persist.forminfo.pointer !== '' &&
     api.persist.forminfo.assistive_technology !== '' &&
-    api.persist.forminfo.tools !== ''
+    api.persist.forminfo.tools !== '' &&
+    api.persist.forminfo.ai !== ''
 )
 
 /**
@@ -70,6 +72,7 @@ function autofill() {
   api.persist.forminfo.pointer = 'Mouse'
   api.persist.forminfo.assistive_technology = 'No'
   api.persist.forminfo.tools = 'No'
+  api.persist.forminfo.ai = 'No'
 }
 
 /**
@@ -301,6 +304,25 @@ function finish() {
               Examples include browser extensions that help you fill forms, enter text, or navigate the web or copying
               answers from AI/Large Language Models.
             </p>
+          </div>
+
+          <!-- AI/tools usage -->
+          <div class="mb-3">
+            <label class="block text-md font-semibold text-foreground mb-2">
+              Are you yourself an AI (e.g., Claude, GPT, etc.)?
+            </label>
+            <Select v-model="api.persist.forminfo.ai">
+              <SelectTrigger class="w-full bg-background dark:bg-background text-base">
+                <SelectValue placeholder="Select an option" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="No">No</SelectItem>
+                <SelectItem value="Yes">Yes</SelectItem>
+                <SelectItem value="I'm not sure">I'm not sure</SelectItem>
+                <SelectItem value="I'd rather not say">I'd rather not say</SelectItem>
+              </SelectContent>
+            </Select>
+            <p class="text-xs text-muted-foreground mt-1">Please answser truthfully.</p>
           </div>
 
           <!-- Navigation separator -->
