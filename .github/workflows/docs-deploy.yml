@@ -172,10 +172,10 @@ jobs:
           remote_key: ${{ secrets.DOCS_DEPLOY_KEY  }}
 
       # send a notification at the end
-      - name: Send notification to lab slack
+      - name: Send notification about docs deploy to lab slack
         env:
-          SLACK_DOCS_WEBHOOK_URL: ${{ secrets.SLACK_DOCS_WEBHOOK_URL }}
-        if: ${{ env.SLACK_DOCS_WEBHOOK_URL != '' }} # this should only run if SLACK_DOCS_WEBHOOK_URL exists
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_DOCS_WEBHOOK_URL }}
+        if: ${{ env.SLACK_WEBHOOK_URL != '' }} # this should only run if SLACK_DOCS_WEBHOOK_URL exists
         id: slack
         uses: slackapi/slack-github-action@v1.25.0
         with:
