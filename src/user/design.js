@@ -53,7 +53,7 @@ api.setRuntimeConfig('windowsizerRequest', { width: 800, height: 600 })
 api.setRuntimeConfig('windowsizerAggressive', true)
 
 api.setRuntimeConfig('anonymousMode', false)
-api.setRuntimeConfig('labURL', 'https://gureckislab.org')
+api.setRuntimeConfig('labURL', 'https://lake-lab.github.io/')
 api.setRuntimeConfig('brandLogoFn', 'universitylogo.png')
 
 api.setRuntimeConfig('maxWrites', 1000)
