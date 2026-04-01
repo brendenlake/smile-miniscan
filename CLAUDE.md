@@ -2,6 +2,15 @@
 
 Smile is a Vue 3 experiment framework for online research. User code goes in `src/user`.
 
+## Previous Version Reference
+
+A previous version of this experiment lives in `psiturk-example-v2/` (at the repo root). Use it as a reference to inform the content of the experiment in the Smile directory — task logic, stimuli, trial structure, instructions, quiz questions, survey, etc.
+
+- HTML files displaying the different steps of the experiment are in `psiturk-example-v2/templates/`
+- The main script controlling the experiment is `psiturk-example-v2/static/js/task.js`
+
+**Do not modify any code in `psiturk-example-v2/`.** It is read-only reference material.
+
 **For detailed docs, read files in `docs/` folder** (e.g., `docs/coding/steps.md`, `docs/styling/layouts.md`).
 
 ## Using Builtins as Starting Points
