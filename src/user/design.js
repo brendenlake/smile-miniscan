@@ -2,12 +2,9 @@
  * @file design.js
  * @description Configures the overall logic and timeline of the experiment.
  * The timeline defines the sequence of phases that the experiment goes through.
- * This file configures which phases occur in what order.
  *
- * Key documentation:
- * - Views: https://smile.gureckislab.org/views.html
- * - Timeline: https://smile.gureckislab.org/timeline.html
- * - Randomization: https://smile.gureckislab.org/randomization.html
+ * Experiment ported from psiturk-example-v2 (SCAN task — concept learning and generalization).
+ * Reference files: psiturk-example-v2/static/js/task.js, psiturk-example-v2/templates/
  *
  * @module design
  */
@@ -15,13 +12,12 @@
 import { markRaw } from 'vue'
 import { processQuery, initService } from '@/core/utils/utils'
 
-// 1. Import main built-in View components
+// 1. Import built-in View components
 import AdvertisementView from '@/builtins/advertisement/AdvertisementView.vue'
 import MTurkRecruitView from '@/builtins/mturk/MTurkRecruitView.vue'
 import InformedConsentView from '@/builtins/informedConsent/InformedConsentView.vue'
 import DemographicSurveyView from '@/builtins/demographicSurvey/DemographicSurveyView.vue'
 import DeviceSurveyView from '@/builtins/deviceSurvey/DeviceSurveyView.vue'
-import InstructionsView from '@/builtins/instructions/InstructionsView.vue'
 import InstructionsQuizView from '@/builtins/instructionsQuiz/InstructionsQuiz.vue'
 import DebriefView from '@/builtins/debrief/DebriefView.vue'
 import TaskFeedbackSurveyView from '@/builtins/taskFeedbackSurvey/TaskFeedbackSurveyView.vue'
@@ -30,22 +26,19 @@ import WithdrawView from '@/builtins/withdraw/WithdrawView.vue'
 import WindowSizerView from '@/builtins/windowSizer/WindowSizerView.vue'
 
 // 2. Import user View components
-import ExpView from '@/builtins/demoTasks/ExpView.vue'
-import FavoriteNumber from '@/builtins/demoTasks/FavoriteNumber.vue'
-import FavoriteColor from '@/builtins/demoTasks/FavoriteColor.vue'
-import StroopExpView from '@/user/components/stroop_exp/StroopExpView.vue'
+import ScanInstructionsView from '@/user/components/instructions/ScanInstructionsView.vue'
+import ScanExpView from '@/user/components/scan/ScanExpView.vue'
+import PostQuestionnaireView from '@/user/components/scan/PostQuestionnaireView.vue'
 
-// #3. Import smile API and timeline
+// 3. Import smile API and timeline
 import useAPI from '@/core/composables/useAPI'
 const api = useAPI()
 
 import Timeline from '@/core/timeline/Timeline'
 const timeline = new Timeline(api)
 
-// #4.  Set runtime configuration options
-//      See http://smile.gureckislab.org/configuration.html#experiment-options-env
+// 4. Set runtime configuration options
 api.setRuntimeConfig('allowRepeats', false)
-
 api.setRuntimeConfig('colorMode', 'light')
 api.setRuntimeConfig('responsiveUI', true)
 
@@ -60,49 +53,18 @@ api.setRuntimeConfig('maxWrites', 1000)
 api.setRuntimeConfig('minWriteInterval', 2000)
 api.setRuntimeConfig('autoSave', true)
 
-api.setRuntimeConfig('payrate', '$15USD/hour prorated for estimated completition time + performance related bonus')
+api.setRuntimeConfig('estimated_time', '40 minutes')
+api.setRuntimeConfig('payrate', '$4 base payment')
 
-// get rid of these two?
-api.setRuntimeConfig('estimated_time', '30-40 minutes')
-api.setRuntimeConfig('payrate', '$15USD/hour prorated for estimated completition time + performance related bonus')
-
-// set the informed consent text on the menu bar
+// Set the informed consent text on the menu bar
 import InformedConsentText from './components/InformedConsentText.vue'
 api.setAppComponent('informed_consent_text', InformedConsentText)
 
-// #5. Add between-subjects condition assignment
-// This is where you can define conditions to which each participant should be assigned
+// 5. No between-subjects conditions for this experiment
 
-// You can assign conditions by passing a javascript object to api.randomAssignCondition(),
-// where the key is the condition name and the value is an array of possible condition values.
-// Each unique condition manipulation should be assigned via a separate call to setConditions.
+// 6. Define the timeline
 
-// EXAMPLE: set a between-subjects condition called taskOrder (AB or BA)
-// api.randomAssignCondition({
-//   taskOrder: ['AB', 'BA'],
-// })
-
-// you can also optionally set randomization weights for each condition. For
-// example, if you want twice as many participants to be assigned to instructions
-// version 1 compared to versions 2 and 3, you can set the weights as follows:
-api.randomAssignCondition({
-  instructionsVersion: ['1', '2', '3'],
-  weights: [2, 1, 1], // weights are automatically normalized, so [4, 2, 2] would be the same
-})
-
-// #6. Define and add some routes to the timeline
-// Each route should map to a View component.
-// Each needs a name
-// but for most experiments they go in sequence from the begining
-// to the end of this list
-
-// by default routes have meta.requiresConsent = true (unless you manually override it)
-// by default routes have meta.requiresDone = false (unless you manually override it)
-
-// IMPORTANT: A least one route needs to be called 'welcome_anonymous'
-// to handle the landing case for someone not coming from a recruitment service
-
-// First welcome screen for non-referral
+// Welcome screen for non-referral participants
 timeline.pushSeqView({
   path: '/welcome',
   name: 'welcome_anonymous',
@@ -112,13 +74,13 @@ timeline.pushSeqView({
     next: 'consent',
     allowAlways: true,
     requiresConsent: false,
-  }, // override what is next
-  beforeEnter: (to) => {
+  },
+  beforeEnter: () => {
     api.getBrowserFingerprint()
   },
 })
 
-// welcome screen for referral from a service (e.g., prolific)
+// Welcome screen for referral from a recruitment service (e.g., Prolific)
 timeline.pushSeqView({
   path: '/welcome/:service',
   name: 'welcome_referred',
@@ -130,16 +92,13 @@ timeline.pushSeqView({
     requiresConsent: false,
   },
   beforeEnter: (to) => {
-    // handle any service-specific initialization before processing URL params
     if (initService(to.params.service) === false) return false
-    // processes info to get the service-specific
-    // participant info (e.g., Profilic ID)
     processQuery(to.query, to.params.service)
     api.getBrowserFingerprint()
   },
 })
 
-// this is a the special page that loads in the iframe on mturk.com
+// Special page that loads in the iframe on mturk.com
 timeline.registerView({
   name: 'mturk',
   component: MTurkRecruitView,
@@ -153,13 +112,12 @@ timeline.registerView({
   },
 })
 
-// import the consent text
-// consent
+// Informed consent
 timeline.pushSeqView({
   name: 'consent',
   component: InformedConsentView,
   props: {
-    informedConsentText: markRaw(InformedConsentText), // provide the informed consent text
+    informedConsentText: markRaw(InformedConsentText),
   },
   meta: {
     requiresConsent: false,
@@ -167,27 +125,26 @@ timeline.pushSeqView({
   },
 })
 
-// demographic survey
+// Demographic survey
 timeline.pushSeqView({
   name: 'demograph',
   component: DemographicSurveyView,
 })
 
-// windowsizer
+// Window sizer
 timeline.pushSeqView({
   name: 'windowsizer',
   component: WindowSizerView,
 })
 
-// instructions
+// Instructions (2 pages with interactive practice)
 timeline.pushSeqView({
   name: 'instructions',
-  component: InstructionsView,
+  component: ScanInstructionsView,
 })
 
-// import the quiz questions
+// Comprehension quiz (6 questions, must pass to proceed)
 import { QUIZ_QUESTIONS } from './components/quizQuestions'
-// instructions quiz
 timeline.pushSeqView({
   name: 'quiz',
   component: InstructionsQuizView,
@@ -198,42 +155,21 @@ timeline.pushSeqView({
   },
 })
 
-// main experiment
-// note: by default, the path will be set to the name of the view
-// however, you can override this by setting the path explicitly
+// Main SCAN experiment (4 stages)
 timeline.pushSeqView({
   name: 'exp',
   path: '/experiment',
-  component: ExpView,
+  component: ScanExpView,
 })
 
-////// example of randomized branching routes
-// (you can also have conditional branching based on conditions -- see docs)
-
-// routes must be initially registered, to tell the timeline they exist
-timeline.registerView({
-  name: 'number',
-  component: FavoriteNumber,
-})
-
-timeline.registerView({
-  name: 'color',
-  component: FavoriteColor,
-})
-
-timeline.pushRandomizedNode({
-  name: 'RandomSplit',
-  options: [['number'], ['color']],
-})
-
-// stroop exp
+// Post-task questionnaire
 timeline.pushSeqView({
-  name: 'stroop',
-  component: StroopExpView,
+  name: 'postquestionnaire',
+  component: PostQuestionnaireView,
 })
 
-// debriefing form
-import DebriefText from '@/user/components/DebriefText.vue' // get access to the global store
+// Debriefing
+import DebriefText from '@/user/components/DebriefText.vue'
 timeline.pushSeqView({
   name: 'debrief',
   component: DebriefView,
@@ -242,36 +178,20 @@ timeline.pushSeqView({
   },
 })
 
-// device survey
+// Device survey
 timeline.pushSeqView({
   name: 'device',
   component: DeviceSurveyView,
 })
 
-// debriefing form
+// Task feedback survey (marks experiment as done)
 timeline.pushSeqView({
   name: 'feedback',
   component: TaskFeedbackSurveyView,
-  meta: { setDone: true }, // this is the last form
+  meta: { setDone: true },
 })
 
-// --- PANDA end-of-study flow (uncomment for PANDA studies) ---
-// import ParentFormView from '@/user/components/panda/ParentFormView.vue'
-// import UploadVideoView from '@/user/components/panda/UploadVideoView.vue'
-//
-// timeline.pushSeqView({
-//   name: 'parentform',
-//   component: ParentFormView,
-//   meta: { setDone: true },
-// })
-//
-// timeline.pushSeqView({
-//   name: 'uploadvideo',
-//   component: UploadVideoView,
-//   meta: { resetApp: true },
-// })
-
-// thanks/submit page
+// Thanks / completion screen
 timeline.pushSeqView({
   name: 'thanks',
   component: ThanksView,
@@ -281,7 +201,7 @@ timeline.pushSeqView({
   },
 })
 
-// this is a special page that is for a withdraw
+// Withdrawal handler
 timeline.registerView({
   name: 'withdraw',
   meta: {
