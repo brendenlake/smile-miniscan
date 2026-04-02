@@ -68,6 +68,8 @@
     "firebase-tools": "^13.30.0",
     "firestore-size": "^2.0.7",
     "glob": "^11.0.1",
+    "jquery": "^4.0.0",
+    "jquery-ui": "^1.14.2",
     "json-stable-stringify": "^1.2.1",
     "lodash": "^4.17.21",
     "lucide-vue-next": "^0.517.0",

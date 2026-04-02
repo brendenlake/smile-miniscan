@@ -1,46 +1,56 @@
+// Quiz questions ported from psiturk-example-v2/templates/prequiz.html
+// All 6 questions are on a single page, all single-select.
+// value="1" in the original marks the correct answer.
+
 export const QUIZ_QUESTIONS = [
   {
     id: 'pg1',
     questions: [
       {
-        id: 'example1',
-        question: 'What color is the sky?',
+        id: 'q1',
+        question: 'Each command is a series of:',
         multiSelect: false,
-        answers: ['red', 'blue', 'yellow', 'rainbow'],
-        correctAnswer: ['blue'],
+        answers: ['English words', 'Nonsense words', 'Colored circles'],
+        correctAnswer: ['Nonsense words'],
       },
       {
-        id: 'example2',
-        question: 'How many days are in a non-leap year?',
+        id: 'q2',
+        question: 'The output for a command is a series of:',
         multiSelect: false,
-        answers: ['365', '100', '12', '31', '60'],
-        correctAnswer: ['365'],
-      },
-    ],
-  },
-  {
-    id: 'pg2',
-    questions: [
-      {
-        id: 'example3',
-        question: 'What comes next: North, South, East, ___',
-        multiSelect: false,
-        answers: ['Southeast', 'Left', 'West'],
-        correctAnswer: ['West'],
+        answers: ['English words', 'Nonsense words', 'Colored circles'],
+        correctAnswer: ['Colored circles'],
       },
       {
-        id: 'example4',
-        question: "What's 7 x 7?",
+        id: 'q3',
+        question: 'In the study phases, your task is to:',
         multiSelect: false,
-        answers: ['63', '59', '49', '14'],
-        correctAnswer: ['49'],
+        answers: [
+          'Reproduce the output for each command.',
+          'Click on each command to reveal its output.',
+          'Count the number of unique commands.',
+        ],
+        correctAnswer: ['Reproduce the output for each command.'],
       },
       {
-        id: 'example5',
-        question: "Who is in Todd's lab?",
-        multiSelect: true,
-        answers: ['Pat', 'Ellen', 'Jimbo', 'Roger'],
-        correctAnswer: ['Pat', 'Ellen'],
+        id: 'q4',
+        question: 'How many stages does this experiment have?',
+        multiSelect: false,
+        answers: ['1', '2', '3', '4'],
+        correctAnswer: ['4'],
+      },
+      {
+        id: 'q5',
+        question: 'You can drag items in the response box to reorder them.',
+        multiSelect: false,
+        answers: ['True', 'False'],
+        correctAnswer: ['True'],
+      },
+      {
+        id: 'q6',
+        question: 'Are you allowed to take notes during the study?',
+        multiSelect: false,
+        answers: ['Yes', 'No'],
+        correctAnswer: ['No'],
       },
     ],
   },
