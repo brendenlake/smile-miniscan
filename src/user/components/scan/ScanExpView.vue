@@ -5,6 +5,7 @@
 
 import { ref, nextTick, onMounted } from 'vue'
 import $ from 'jquery'
+import _ from 'underscore'
 
 // jQuery UI requires a global `jQuery` before its modules are evaluated.
 // Set it here (module body runs before onMounted) so dynamic imports below find it.
@@ -18,6 +19,7 @@ import {
   COLORS,
   REDACTED_SYMBOL,
   createGrounding,
+  getScanSeedSignature,
   convertCommandToWords,
   removeSingletons,
   redactOutput,
@@ -32,21 +34,76 @@ import { subtasks_train, subtasks_test, stims4_train, stims4_test } from './scan
 const api = useViewAPI()
 
 // ---------------------------------------------------------------------------
+// Seeded PRNG for testing — override Math.random when ?seed=N is in the URL.
+// Use the same seed value in both Smile and psiturk serve.js to get identical
+// stimulus orderings side-by-side. Example: http://localhost:3020?seed=42
+// ---------------------------------------------------------------------------
+// Put seed in the base query string (before #) so changing it forces a full page reload.
+// URL format: http://localhost:3020/.../?seed=42#/experiment/
+function getTestSeed() {
+  const searchSeed = new URLSearchParams(window.location.search).get('seed')
+  if (searchSeed !== null) return searchSeed
+
+  const [, hashQuery = ''] = window.location.hash.split('?')
+  return new URLSearchParams(hashQuery).get('seed')
+}
+
+const _testSeed = getTestSeed()
+function applyTestSeed(seedValue) {
+  if (seedValue === null) return
+
+  let s = parseInt(seedValue, 10)
+  Math.random = function () {
+    s |= 0; s = (s + 0x6D2B79F5) | 0
+    let t = Math.imul(s ^ (s >>> 15), 1 | s)
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+applyTestSeed(_testSeed)
+
+const currentSeedSignature = getScanSeedSignature({
+  urlSeed: _testSeed,
+  useSeed: api.store.browserPersisted.useSeed,
+  seedID: api.store.getSeedID,
+})
+const SCAN_RANDOMIZATION_VERSION = 'underscore-1.13.8'
+const SCAN_DEBUG_BUILD = '2026-04-03-sync-1'
+
+// ---------------------------------------------------------------------------
 // Persistent state: grounding, stage order, pool colors, current stage index.
 // Survives page reload so participants don't restart from stage 1.
 // ---------------------------------------------------------------------------
-if (!api.persist.isDefined('scan')) {
-  const allStims = [
-    ...subtasks_train.flat(),
-    ...subtasks_test.flat(),
-    ...stims4_train,
-    ...stims4_test,
-  ]
-  const words = shuffleArr([...WORDS])
-  const colors = shuffleArr([...COLORS])
-  const grounding = createGrounding(allStims, words, colors)
-  const stageOrder = buildStageOrder(subtasks_train, subtasks_test, stims4_train, stims4_test)
-  const colors_post = shuffleArr([...COLORS])
+function initPersist() {
+  // Reset before the SCAN-specific setup so framework/library startup cannot
+  // perturb the seeded stream.
+  applyTestSeed(_testSeed)
+
+  // Match psiturk's runtime initialization sequence exactly:
+  // 1. scan_stimuli_simple.js: colors_scan = _.shuffle(colors_scan)
+  // 2. task.js: apply_test_seed(get_test_seed())
+  // 3. task.js: myzip = _.shuffle(myzip)  [stage order]
+  // 4. task.js: colors = _.shuffle(colors_scan)
+  // 5. task.js: words  = _.shuffle(words_scan)
+  // 6. task.js: colors_post = _.shuffle(colors)
+  const colorsScan = _.shuffle(COLORS)             // #1
+  applyTestSeed(_testSeed)                         // #2
+  const stageOrder = buildStageOrder(subtasks_train, subtasks_test, stims4_train, stims4_test) // #3
+  const colors = _.shuffle(colorsScan)             // #4
+  const words = _.shuffle(WORDS)                   // #5
+  const colors_post = _.shuffle(colors)            // #6
+  const debugStageInfo = []
+  const initialDebugPools = {
+    colorsScan: [...colorsScan],
+    colors: [...colors],
+    words: [...words],
+    colorsPost: [...colors_post],
+  }
+
+  // createGrounding now processes per-stage, consuming PRNG draws in the
+  // same order as psiturk's ScanExperiment constructors.
+  const grounding = createGrounding(stageOrder, words, colors, debugStageInfo)
 
   api.persist.scan = {
     grounding,
@@ -56,17 +113,97 @@ if (!api.persist.isDefined('scan')) {
       flexThreshold: s.flexThreshold,
     })),
     colors_post,
+    debugPools: initialDebugPools,
+    debugStageInfo,
     stageIdx: 0,
+    seedSignature: currentSeedSignature,
+    randomizationVersion: SCAN_RANDOMIZATION_VERSION,
+  }
+}
+
+if (_testSeed !== null) {
+  // In URL-seeded test mode, always rebuild from a fresh PRNG stream.
+  initPersist()
+} else if (!api.persist.isDefined('scan')) {
+  initPersist()
+} else {
+  const s = api.persist.scan
+
+  // Reinitialize when the active fixed seed or URL seed changes.
+  if (s.randomizationVersion !== SCAN_RANDOMIZATION_VERSION) {
+    initPersist()
+  } else if (currentSeedSignature !== null && s.seedSignature !== currentSeedSignature) {
+    initPersist()
+  } else if (!s.stageOrder || s.stageIdx >= s.stageOrder.length) {
+    // Reset stale state — e.g. stageIdx left at nstage from a previous completed run
+    initPersist()
   }
 }
 
 const p = api.persist.scan
 const { input_dict, output_dict, output_dict_reverse } = p.grounding
 const colors_post = p.colors_post
+const debugPools = p.debugPools || { colorsScan: [], colors: [], words: [], colorsPost: [] }
+const debugStageInfo = p.debugStageInfo || []
 const nstage = p.stageOrder.length // 4
+
+if (_testSeed !== null) {
+  window.__smileScanDebug = {
+    seed: _testSeed,
+    underscoreVersion: _.VERSION,
+    seedSignature: currentSeedSignature,
+    randomizationVersion: SCAN_RANDOMIZATION_VERSION,
+    debugBuild: SCAN_DEBUG_BUILD,
+    debugPools,
+    stageOrder: p.stageOrder.map((stage, index) => ({
+      index,
+      firstTrain: stage.train[0]?.[0],
+      firstTest: stage.test[0]?.[0],
+      flexThreshold: stage.flexThreshold,
+    })),
+    input_dict,
+    output_dict,
+    output_dict_reverse,
+  }
+  console.log('[Smile SCAN debug]', window.__smileScanDebug)
+}
 
 // Current stage shorthand
 const currentStage = () => p.stageOrder[p.stageIdx]
+
+function getUniqueSymbols(stims, sideIndex) {
+  const symbols = []
+  for (const stim of stims) {
+    for (const sym of stim[sideIndex].trim().split(' ')) {
+      if (!symbols.includes(sym)) symbols.push(sym)
+    }
+  }
+  return symbols
+}
+
+function getCurrentStageInputMappings() {
+  const stage = currentStage()
+  if (!stage) return []
+
+  const symbols = getUniqueSymbols([...stage.train, ...stage.test], 0)
+  return symbols
+    .filter((sym) => input_dict[sym] !== undefined)
+    .map((sym) => ({ symbol: sym, value: input_dict[sym] }))
+}
+
+function getCurrentStageOutputMappings() {
+  const stage = currentStage()
+  if (!stage) return []
+
+  const symbols = getUniqueSymbols([...stage.train, ...stage.test], 1)
+  return symbols
+    .filter((sym) => output_dict[sym] !== undefined)
+    .map((sym) => ({ symbol: sym, value: output_dict[sym] }))
+}
+
+function getCurrentStageDebugInfo() {
+  return debugStageInfo[p.stageIdx] || { inputSymbols: [], outputSymbols: [] }
+}
 
 // ---------------------------------------------------------------------------
 // Reactive UI state
@@ -129,7 +266,7 @@ function next() {
     epochCorrect = 0
     epochCount = 0
     stims_orig_epoch = removeSingletons(currentStage().train.slice())
-    stims_epoch = shuffleArr(stims_orig_epoch.slice())
+    stims_epoch = _.shuffle(stims_orig_epoch)
 
     // Show study table (first time or after failure)
     uiPhase.value = 'study_table'
@@ -191,7 +328,7 @@ function initStageState() {
   epochCorrect = 0
   epochCount = 0
   stims_epoch = []
-  stims_test = shuffleArr(currentStage().test.slice())
+  stims_test = _.shuffle(currentStage().test)
   isRepeatCycle.value = false
   repeatMsg.value = ''
   next() // will show study table (fills epoch, sets uiPhase='study_table')
@@ -365,7 +502,7 @@ function makeCirclesCell(output) {
   if (output === REDACTED_SYMBOL) {
     $list.append(
       $('<li>').attr('class', 'data_li').html(
-        $('<span>').attr('style', 'color:#000000;font-size:40px;').html('&#x25AC')
+        $('<span>').attr('style', 'color:#000000;font-size:40px;display:inline-block;transform:scaleX(1.3) scaleY(0.5);').html('&#x25AC')
       )
     )
   } else {
@@ -374,17 +511,6 @@ function makeCirclesCell(output) {
     }
   }
   return $('<td>').append($list)
-}
-
-// ---------------------------------------------------------------------------
-// Utility
-// ---------------------------------------------------------------------------
-function shuffleArr(arr) {
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[arr[i], arr[j]] = [arr[j], arr[i]]
-  }
-  return arr
 }
 
 // ---------------------------------------------------------------------------
@@ -414,6 +540,30 @@ onMounted(async () => {
 
 <template>
   <div class="scan-exp mx-auto max-w-4xl px-6 py-4">
+
+    <div v-if="_testSeed !== null" class="scan-debug-panel mb-4">
+      <div class="scan-debug-title">Seed {{ _testSeed }} current-stage mapping (build {{ SCAN_DEBUG_BUILD }})</div>
+      <div class="scan-debug-meta">words: {{ debugPools.words.join(', ') }}</div>
+      <div class="scan-debug-meta">colors: {{ debugPools.colors.join(', ') }}</div>
+      <div class="scan-debug-meta">input order: {{ getCurrentStageDebugInfo().inputSymbols.join(', ') }}</div>
+      <div class="scan-debug-meta">output order: {{ getCurrentStageDebugInfo().outputSymbols.join(', ') }}</div>
+      <div class="scan-debug-grid">
+        <div>
+          <div class="scan-debug-subtitle">Input symbols</div>
+          <div v-for="entry in getCurrentStageInputMappings()" :key="`in-${entry.symbol}`" class="scan-debug-row">
+            <span>{{ entry.symbol }}</span>
+            <span>{{ entry.value }}</span>
+          </div>
+        </div>
+        <div>
+          <div class="scan-debug-subtitle">Output symbols</div>
+          <div v-for="entry in getCurrentStageOutputMappings()" :key="`out-${entry.symbol}`" class="scan-debug-row">
+            <span>{{ entry.symbol }}</span>
+            <span>{{ entry.value }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- ------------------------------------------------------------------ -->
     <!-- Phase instruction banners                                            -->
@@ -509,7 +659,7 @@ onMounted(async () => {
       <!-- Response box -->
       Response to command:
       <button id="reset_button" class="btn btn-default" @click="handleReset">Reset</button>
-      <ul id="response_array" style="border-style: solid; width: 75%; height: 70px" />
+      <ul id="response_array" style="width: 75%; height: 70px" />
 
       <!-- Submit -->
       <div v-show="!feedbackVisible" class="mt-2">
@@ -555,7 +705,15 @@ onMounted(async () => {
 }
 
 :deep(li) {
-  font-size: 60px;
+  font-size: 42px;
+}
+
+:deep(.source_li) {
+  cursor: pointer;
+}
+
+:deep(#response_array) {
+  border: 1px solid black;
 }
 
 :deep(.data_li) {
@@ -609,5 +767,35 @@ onMounted(async () => {
   padding: 10px 16px;
   font-size: 18px;
   border-radius: 6px;
+}
+
+.scan-debug-panel {
+  border: 1px solid #bbb;
+  background: #f8f8f8;
+  padding: 12px;
+  font-family: monospace;
+  font-size: 13px;
+}
+
+.scan-debug-title {
+  font-weight: bold;
+  margin-bottom: 8px;
+}
+
+.scan-debug-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.scan-debug-subtitle {
+  font-weight: bold;
+  margin-bottom: 6px;
+}
+
+.scan-debug-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
 }
 </style>

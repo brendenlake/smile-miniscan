@@ -1,10 +1,30 @@
 // Pure JS experiment logic, ported from psiturk-example-v2/static/js/task.js.
 // No DOM, no Vue — importable and testable in isolation.
 
+import _ from 'underscore'
+
 export { WORDS, COLORS } from './scanStimuli'
 
 export const REDACTED_SYMBOL = 'REDACTED'
 export const MAX_CYCLES = 3
+
+/**
+ * Return the signature used to determine whether persisted SCAN randomization
+ * should be regenerated.
+ *
+ * URL seed takes precedence because ScanExpView overrides Math.random locally
+ * when ?seed=N is present. Otherwise, a fixed Smile seed is keyed off the
+ * browser-persisted seed ID. When random seeding is enabled, return null so we
+ * preserve the existing persisted state across reloads.
+ *
+ * @param {{ urlSeed?: string|null, useSeed?: boolean, seedID?: string }} options
+ * @returns {string|null}
+ */
+export function getScanSeedSignature({ urlSeed = null, useSeed = false, seedID = '' } = {}) {
+  if (urlSeed !== null) return `url:${urlSeed}`
+  if (useSeed && seedID) return `store:${seedID}`
+  return null
+}
 
 /**
  * Build input/output grounding from all stimuli.
@@ -19,40 +39,77 @@ export const MAX_CYCLES = 3
  * @param {string[]} colors - Shuffled copy of COLORS to draw from
  * @returns {{ input_dict, output_dict, output_dict_reverse }}
  */
-export function createGrounding(allStims, words, colors) {
+/**
+ * Build input/output grounding by processing each stage in order, exactly
+ * mirroring psiturk's ScanExperiment constructor logic:
+ *   stims = _.shuffle(train.concat(test))
+ *   stims_train = _.shuffle(stims_train)
+ *   stims_test  = _.shuffle(stims_test)
+ *   input_symbols  = Array.from(new Set(...)); _.shuffle(input_symbols)
+ *   output_symbols = Array.from(new Set(...)); _.shuffle(output_symbols)
+ *
+ * This replicates the exact PRNG draw counts per stage, so a seeded
+ * Math.random produces the same primitive assignments as psiturk.
+ *
+ * @param {Array<{train, test}>} stageOrder - stages in presentation order
+ * @param {string[]} words  - shuffled word pool (mutated via shift())
+ * @param {string[]} colors - shuffled color pool (mutated via shift())
+ */
+export function createGrounding(stageOrder, words, colors, debugStages = null) {
   const input_dict = {}
   const output_dict = {}
   const output_dict_reverse = {}
 
-  // Collect and deduplicate input symbols in encounter order
-  const inputSymbols = []
-  for (const stim of allStims) {
-    for (const sym of stim[0].trim().split(' ')) {
-      if (!inputSymbols.includes(sym)) inputSymbols.push(sym)
+  for (const [stageIndex, stage] of stageOrder.entries()) {
+    // Mirror ScanExperiment constructor's three stims shuffles
+    const stims = _.shuffle([...stage.train, ...stage.test])
+    _.shuffle(stage.train)  // consume same draws as stims_train shuffle
+    _.shuffle(stage.test)   // consume same draws as stims_test shuffle
+
+    // Collect input symbols in shuffled-stim encounter order, then shuffle
+    const inputSymbols = []
+    for (const stim of stims) {
+      for (const sym of stim[0].trim().split(' ')) {
+        if (!inputSymbols.includes(sym)) inputSymbols.push(sym)
+      }
     }
-  }
-  for (const sym of inputSymbols) {
-    if (!(sym in input_dict)) {
-      input_dict[sym] = words.shift()
+    const shuffledInputSymbols = _.shuffle(inputSymbols)
+    for (const sym of shuffledInputSymbols) {
+      if (!(sym in input_dict)) input_dict[sym] = words.shift()
     }
+
+    // Collect output symbols in shuffled-stim encounter order, then shuffle
+    const outputSymbols = []
+    for (const stim of stims) {
+      for (const sym of stim[1].trim().split(' ')) {
+        if (!outputSymbols.includes(sym)) outputSymbols.push(sym)
+      }
+    }
+    const shuffledOutputSymbols = _.shuffle(outputSymbols)
+    for (const sym of shuffledOutputSymbols) {
+      if (!(sym in output_dict)) {
+        const color = colors.shift()
+        output_dict[sym] = color
+        output_dict_reverse[color] = sym
+      }
+    }
+
+    if (debugStages) {
+      debugStages[stageIndex] = {
+        inputSymbols: [...shuffledInputSymbols],
+        outputSymbols: [...shuffledOutputSymbols],
+      }
+    }
+
+    // Mirror psiturk's next() call at the end of ScanExperiment constructor (line 636):
+    //   stims_orig_epoch = remove_singletons(stims_train)
+    //   stims_epoch = _.shuffle(stims_orig_epoch.slice())
+    // Assumes participant passes each stage on the first study cycle.
+    const epochStims = stage.train.filter(s => s[0].trim().split(' ').length > 1)
+    _.shuffle(epochStims)
   }
 
-  // Collect and deduplicate output symbols in encounter order
-  const outputSymbols = []
-  for (const stim of allStims) {
-    for (const sym of stim[1].trim().split(' ')) {
-      if (!outputSymbols.includes(sym)) outputSymbols.push(sym)
-    }
-  }
-  for (const sym of outputSymbols) {
-    if (!(sym in output_dict)) {
-      const color = colors.shift()
-      output_dict[sym] = color
-      output_dict_reverse[color] = sym
-    }
-  }
-
-  // Remaining (unused) colors map to 'undefined_action'
+  // Remaining colors map to 'undefined_action'
   for (const color of colors) {
     output_dict_reverse[color] = 'undefined_action'
   }
@@ -120,10 +177,10 @@ export function buildStageOrder(subtasks_train, subtasks_test, postTrain, postTe
   //   myzip = subtasks_train.map((e, i) => [e, subtasks_test[i]])
   //   myzip = _.shuffle(myzip)
   const zipped = subtasks_train.map((train, i) => ({ train, test: subtasks_test[i] }))
-  shuffleArray(zipped)
+  const shuffled = _.shuffle(zipped)
 
   return [
-    ...zipped.map((s) => ({ train: s.train, test: s.test, flexThreshold: 0 })),
+    ...shuffled.map((s) => ({ train: s.train, test: s.test, flexThreshold: 0 })),
     { train: postTrain, test: postTest, flexThreshold: 1 },
   ]
 }
@@ -159,15 +216,3 @@ export function actionsToColors(actions, output_dict) {
     .join(' ')
 }
 
-// ---------------------------------------------------------------------------
-// Internal helpers
-// ---------------------------------------------------------------------------
-
-/** Fisher-Yates in-place shuffle (lodash _.shuffle equivalent) */
-function shuffleArray(arr) {
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[arr[i], arr[j]] = [arr[j], arr[i]]
-  }
-  return arr
-}

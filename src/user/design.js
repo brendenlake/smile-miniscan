@@ -151,7 +151,7 @@ timeline.pushSeqView({
   props: {
     questions: QUIZ_QUESTIONS,
     returnTo: 'instructions',
-    randomizeQandA: true,
+    randomizeQandA: false,
   },
 })
 
@@ -166,30 +166,31 @@ timeline.pushSeqView({
 timeline.pushSeqView({
   name: 'postquestionnaire',
   component: PostQuestionnaireView,
-})
-
-// Debriefing
-import DebriefText from '@/user/components/DebriefText.vue'
-timeline.pushSeqView({
-  name: 'debrief',
-  component: DebriefView,
-  props: {
-    debriefText: markRaw(DebriefText),
-  },
-})
-
-// Device survey
-timeline.pushSeqView({
-  name: 'device',
-  component: DeviceSurveyView,
-})
-
-// Task feedback survey (marks experiment as done)
-timeline.pushSeqView({
-  name: 'feedback',
-  component: TaskFeedbackSurveyView,
   meta: { setDone: true },
 })
+
+// // Debriefing
+// import DebriefText from '@/user/components/DebriefText.vue'
+// timeline.pushSeqView({
+//   name: 'debrief',
+//   component: DebriefView,
+//   props: {
+//     debriefText: markRaw(DebriefText),
+//   },
+// })
+
+// // Device survey
+// timeline.pushSeqView({
+//   name: 'device',
+//   component: DeviceSurveyView,
+// })
+
+// // Task feedback survey (marks experiment as done)
+// timeline.pushSeqView({
+//   name: 'feedback',
+//   component: TaskFeedbackSurveyView,
+//   meta: { setDone: true },
+// })
 
 // Thanks / completion screen
 timeline.pushSeqView({

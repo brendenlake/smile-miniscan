@@ -1,11 +1,14 @@
 /* eslint-disable no-undef */
 /**
- * These tests verify that the Smile SCAN experiment preserves the exact semantics
- * of the original psiturk-example-v2 implementation (task.js + scan_stimuli_simple.js).
+ * Tests that verify the Smile SCAN experiment preserves the exact semantics of
+ * psiturk-example-v2 (task.js + scan_stimuli_simple.js).
  *
- * Each test is annotated with the corresponding logic in the original code.
+ * Both the psiturk reference logic AND the Smile logic are actually executed.
+ * A seeded PRNG replaces Math.random so both implementations can be run with
+ * an identical random sequence and their outputs compared directly.
  */
 import { describe, it, expect } from 'vitest'
+import _ from 'underscore'
 
 import {
   WORDS,
@@ -13,6 +16,7 @@ import {
   REDACTED_SYMBOL,
   MAX_CYCLES,
   createGrounding,
+  getScanSeedSignature,
   convertCommandToWords,
   removeSingletons,
   redactOutput,
@@ -35,201 +39,329 @@ import {
   subtasks_test,
 } from '@/user/components/scan/scanStimuli'
 
-// ---------------------------------------------------------------------------
-// Helper: build a grounding from all stages combined
-// ---------------------------------------------------------------------------
-function makeGrounding() {
-  const allStims = [
-    ...stims1_train, ...stims1_test,
-    ...stims2_train, ...stims2_test,
-    ...stims3_train, ...stims3_test,
-    ...stims4_train, ...stims4_test,
-  ]
-  return createGrounding(allStims, [...WORDS], [...COLORS])
+// ===========================================================================
+// Seeded PRNG — replaces Math.random so both implementations are deterministic
+// and comparable with an identical random sequence.
+// ===========================================================================
+
+function makeSeededRandom(seed) {
+  // Mulberry32 — matches ScanExpView.vue seeded test mode
+  let s = seed >>> 0
+  return () => {
+    s = (s + 0x6d2b79f5) | 0
+    let t = Math.imul(s ^ (s >>> 15), 1 | s)
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+/**
+ * Run fn() with Math.random replaced by a fresh seeded generator.
+ * Restores the original Math.random afterwards.
+ */
+function withSeed(seed, fn) {
+  const orig = Math.random
+  Math.random = makeSeededRandom(seed)
+  try {
+    return fn()
+  } finally {
+    Math.random = orig
+  }
 }
 
 // ===========================================================================
-// 1. Stimuli — exact match to scan_stimuli_simple.js
+// PSITURK REFERENCE IMPLEMENTATION
+// Exact port of scan_stimuli_simple.js data and task.js pure logic.
+// These variables and functions are executed — not commented.
 // ===========================================================================
 
-describe('Stimuli match scan_stimuli_simple.js', () => {
-  // Original: var stims1_train = [['p1','c1'], ['p2','c2'], ...]
-  it('stage 1: 6 training pairs', () => expect(stims1_train.length).toBe(6))
-  it('stage 1: 2 test pairs', () => expect(stims1_test.length).toBe(2))
-  it('stage 2: 6 training pairs', () => expect(stims2_train.length).toBe(6))
-  it('stage 2: 3 test pairs', () => expect(stims2_test.length).toBe(3))
-  it('stage 3: 6 training pairs', () => expect(stims3_train.length).toBe(6))
-  it('stage 3: 3 test pairs', () => expect(stims3_test.length).toBe(3))
-  it('stage 4: 14 training pairs', () => expect(stims4_train.length).toBe(14))
-  it('stage 4: 7 test pairs', () => expect(stims4_test.length).toBe(7))
+// ---------------------------------------------------------------------------
+// scan_stimuli_simple.js — data (executed)
+// ---------------------------------------------------------------------------
 
-  // Original: var subtasks_train = [stims1_train, stims2_train, stims3_train]
-  it('subtasks_train contains exactly stims1_train, stims2_train, stims3_train', () => {
-    expect(subtasks_train).toContain(stims1_train)
-    expect(subtasks_train).toContain(stims2_train)
-    expect(subtasks_train).toContain(stims3_train)
-    expect(subtasks_train.length).toBe(3)
-  })
+const psit_words = ['dax', 'lug', 'wif', 'zup', 'fep', 'blicket', 'kiki', 'tufa', 'gazzer']
+const psit_colors = ['#ff0000', '#0000ff', '#33cc33', '#b7b600', '#ce9fcf', '#00b0b3']
 
-  it('subtasks_test contains exactly stims1_test, stims2_test, stims3_test', () => {
-    expect(subtasks_test).toContain(stims1_test)
-    expect(subtasks_test).toContain(stims2_test)
-    expect(subtasks_test).toContain(stims3_test)
-    expect(subtasks_test.length).toBe(3)
-  })
+const psit_stims1_train = [
+  ['p1', 'c1'], ['p2', 'c2'], ['p3', 'c3'], ['p4', 'c4'],
+  ['p1 m1', 'c1 c1 c1'], ['p2 m1', 'c2 c2 c2'],
+]
+const psit_stims1_test = [
+  ['p4 m1', 'c4 c4 c4'],
+  ['p2 m1', 'c2 c2 c2'],
+]
+const psit_stims2_train = [
+  ['p1', 'c1'], ['p2', 'c2'], ['p3', 'c3'], ['p4', 'c4'],
+  ['p3 m2 p1', 'c3 c1 c3'], ['p2 m2 p3', 'c2 c3 c2'],
+]
+const psit_stims2_test = [
+  ['p4 m2 p2', 'c4 c2 c4'], ['p1 m2 p4', 'c1 c4 c1'], ['p2 m2 p3', 'c2 c3 c2'],
+]
+const psit_stims3_train = [
+  ['p1', 'c1'], ['p2', 'c2'], ['p3', 'c3'], ['p4', 'c4'],
+  ['p1 m3 p2', 'c2 c1'], ['p2 m3 p3', 'c3 c2'],
+]
+const psit_stims3_test = [
+  ['p4 m3 p1', 'c1 c4'], ['p3 m3 p4', 'c4 c3'], ['p2 m3 p3', 'c3 c2'],
+]
+const psit_stims4_train = [
+  ['p1', 'c1'], ['p2', 'c2'], ['p3', 'c3'], ['p4', 'c4'],
+  ['p1 m1', 'c1 c1 c1'], ['p2 m1', 'c2 c2 c2'],
+  ['p3 m2 p1', 'c3 c1 c3'], ['p2 m2 p3', 'c2 c3 c2'],
+  ['p1 m3 p2', 'c2 c1'], ['p2 m3 p3', 'c3 c2'],
+  ['p2 m1 m3 p3', 'c3 c2 c2 c2'], ['p2 m3 p3 m1', 'c3 c3 c3 c2'],
+  ['p3 m3 p1 m2 p2', 'c1 c2 c1 c3'], ['p3 m2 p1 m3 p2', 'c2 c3 c1 c3'],
+]
+const psit_stims4_test = [
+  ['p2 m1 m3 p3', 'c3 c2 c2 c2'],
+  ['p4 m1 m3 p2', 'c2 c4 c4 c4'],
+  ['p3 m3 p4 m1', 'c4 c4 c4 c3'],
+  ['p2 m3 p3 m2 p4', 'c3 c4 c3 c2'],
+  ['p3 m3 p1 m2 p2', 'c1 c2 c1 c3'],
+  ['p4 m2 p3 m3 p1 m1 ', 'c1 c1 c1 c4 c3 c4'],
+  ['p4 m2 p4 m3 p4 m1', 'c4 c4 c4 c4 c4 c4'],
+]
+const psit_subtasks_train = [psit_stims1_train, psit_stims2_train, psit_stims3_train]
+const psit_subtasks_test  = [psit_stims1_test,  psit_stims2_test,  psit_stims3_test]
 
-  // Spot-check exact stimuli values from scan_stimuli_simple.js
-  it('stage 1 training includes the expected primitives', () => {
-    expect(stims1_train).toContainEqual(['p1', 'c1'])
-    expect(stims1_train).toContainEqual(['p2', 'c2'])
-    expect(stims1_train).toContainEqual(['p3', 'c3'])
-    expect(stims1_train).toContainEqual(['p4', 'c4'])
-  })
+// ---------------------------------------------------------------------------
+// task.js pure functions (executed, no DOM)
+// ---------------------------------------------------------------------------
 
-  it('stage 1 training includes the m1 modifier rule', () => {
-    expect(stims1_train).toContainEqual(['p1 m1', 'c1 c1 c1'])
-    expect(stims1_train).toContainEqual(['p2 m1', 'c2 c2 c2'])
-  })
+/**
+ * Modern underscore shuffle used by both Smile and the updated PsiTurk app.
+ */
+function psit_shuffle(arr) {
+  return _.shuffle(arr)
+}
 
-  it('stage 1 test includes p4 m1 → c4 c4 c4 and a catch trial', () => {
-    expect(stims1_test).toContainEqual(['p4 m1', 'c4 c4 c4'])
-    expect(stims1_test).toContainEqual(['p2 m1', 'c2 c2 c2'])
-  })
+/** task.js remove_singletons (lines 464-476) */
+var psit_remove_singletons = function (mystims) {
+		// remove all stimuli that are primitives (only have one input symbol)
+		//   return the filtered array
+		var mystims_filter = [];
+		for (var i=0; i<mystims.length; i++) {
+			var mycommand_raw = mystims[i][0];
+			var nterms = mycommand_raw.split(' ').length;
+			if (nterms > 1) {
+				mystims_filter.push(mystims[i]);
+			}
+		}
+		return mystims_filter;
+	};
 
-  it('stage 4 training includes all three modifiers', () => {
-    const inputs = stims4_train.map((s) => s[0])
-    expect(inputs.some((i) => i.includes('m1'))).toBe(true)
-    expect(inputs.some((i) => i.includes('m2'))).toBe(true)
-    expect(inputs.some((i) => i.includes('m3'))).toBe(true)
-  })
-})
 
-// ===========================================================================
-// 2. Word and color pools — match scan_stimuli_simple.js
-// ===========================================================================
+/**
+ * task.js remove_element (lines 455-462).
+ * Original uses indexOf(stim-object) to find by reference; we find by input
+ * string instead, which is equivalent when elements have unique input values.
+ */
+var special_redacted_symbol = 'REDACTED';
+var psit_remove_element = function(myarray, myelem) {
+		// remove element from an array
+    var index = myarray.indexOf(myelem);
+    if (index === -1) { return myarray } // element not found, return original array
+		myarray = myarray.slice();
+		myarray[index] = myarray[index].slice();
+		myarray[index][1] = special_redacted_symbol;
+		return myarray;
+};
 
-describe('Word and color pools match scan_stimuli_simple.js', () => {
-  // Original: var words_scan = ['dax', 'lug', 'wif', ...]
-  it('WORDS matches words_scan exactly', () => {
-    expect(WORDS).toEqual(['dax', 'lug', 'wif', 'zup', 'fep', 'blicket', 'kiki', 'tufa', 'gazzer'])
-  })
+function findPsitStimByInput(stims, targetInput) {
+  return stims.find((stim) => stim[0] === targetInput)
+}
 
-  // Original: var colors_scan = ['#ff0000', '#0000ff', '#33cc33', '#b7b600', '#ce9fcf', '#00b0b3']
-  it('COLORS matches colors_scan exactly', () => {
-    expect(COLORS).toEqual(['#ff0000', '#0000ff', '#33cc33', '#b7b600', '#ce9fcf', '#00b0b3'])
-  })
-})
+/** task.js next() pass condition (line 484) */
+function psit_hasPassed(epoch_count, epoch_correct, flex_threshold, cycle_count) {
+  return (epoch_count - epoch_correct <= flex_threshold) || (cycle_count === 3)
+}
+// if (epoch_count - epoch_correct <= flex_threshold || cycle_count === max_cycle_count) { // if we passed
 
-// ===========================================================================
-// 3. Grounding — matches task.js assign_grounding logic
-// ===========================================================================
+/** task.js convert_command_to_words (lines 201-209) */
+var psit_convert_command_to_words = function (mycommand, input_dict) {
+		// convert an abstract command to pseudoword sequence
+		mycommand = mycommand.split(" ");
+		var mywords = [];
+		for (var i=0; i<mycommand.length; i++) {
+			mywords.push( input_dict[mycommand[i]] );
+		}
+		return mywords.join(" ");
+	};
 
-describe('createGrounding matches task.js grounding logic', () => {
-  // Original: each input symbol (p1, p2, m1, ...) gets one unique word from words pool
-  it('each unique input symbol is assigned exactly one word from WORDS', () => {
-    const { input_dict } = makeGrounding()
-    const allInputSymbols = [
-      ...new Set([
-        ...stims4_train.flatMap((s) => s[0].trim().split(' ')),
-        ...stims4_test.flatMap((s) => s[0].trim().split(' ')),
-      ]),
-    ]
-    for (const sym of allInputSymbols) {
-      expect(WORDS).toContain(input_dict[sym])
+/** task.js actions_to_colors (lines 273-281) */
+var psit_actions_to_colors = function (myactions, output_dict) {
+		// convert string of actions ('a1 a4 a1') to string of colors ('#ff0000 #33cc33 #b7b600')
+		var myactions_array = myactions.split(" ");
+    var mycolors = [];
+		for (var i=0; i<myactions_array.length; i++) {
+			mycolors.push(output_dict[myactions_array[i]]);
+		}
+		return mycolors.join(" ");
+};
+
+/** task.js process_response pure extraction (lines 338-362) */
+function psit_process_response(colorStyles, output_dict_reverse) {
+  return colorStyles
+    .map((mytag) => {
+      const preIndex = mytag.indexOf('color:')
+      const postIndex = mytag.indexOf(';')
+      const color = mytag.substring(preIndex + 'color:'.length, postIndex)
+      return output_dict_reverse[color]
+    })
+    .join(' ')
+}
+
+	// var psit_process_response = function () {
+	// 	// get "response to command" array as a string of abstract actions
+
+	// 	var myresponse = $('#response_array span').map( function () { 
+	// 						return $(this).attr('style');
+	// 					});
+	// 	myresponse = $.makeArray(myresponse);
+	// 	// extract color from style tag
+	// 	myresponse_abstract = [];
+	// 	for (var i=0; i<myresponse.length; i++) {
+	// 		mytag = myresponse[i];
+	// 		preString = 'color:';
+	// 		postString = ';';
+	// 		preIndex = mytag.indexOf(preString);
+	// 		postIndex = mytag.indexOf(postString);
+	// 		mytag = mytag.substring(preIndex + preString.length, postIndex);
+	// 		myresponse_abstract.push(output_dict_reverse[mytag]); // convert to abstract action
+	// 	}
+
+	// 	assert(myresponse.length === myresponse_abstract.length, "Error: response processor has failed. Please report to experimenter.");
+
+	// 	return { 
+	// 		abstract : myresponse_abstract.join(' '),
+	// 		raw : myresponse.join(' ')
+	// 	};
+	// };
+
+/**
+ * task.js stage ordering logic (lines 82-107) using modern underscore shuffle.
+ */
+function psit_buildStageOrder() {
+  const myzip = psit_shuffle(psit_subtasks_train.map((train, i) => ({
+    train,
+    test: psit_subtasks_test[i],
+  })))
+  return [
+    ...myzip.map((s) => ({ train: s.train, test: s.test, flexThreshold: 0 })),
+    { train: psit_stims4_train, test: psit_stims4_test, flexThreshold: 1 },
+  ]
+}
+
+/**
+ * Per-stage grounding from task.js ScanExperiment constructor (lines 136-199).
+ * Given a pre-built stage order and pre-allocated word/color pools, it runs the
+ * same shuffle-then-assign logic as createGrounding() in scanLogic.js.
+ */
+function psit_buildGroundingFromOrder(stageOrder, words, colors) {
+  const input_dict = {}
+  const output_dict = {}
+  const output_dict_reverse = {}
+
+  for (const { train, test } of stageOrder) {
+    // task.js lines 159-164
+    const stims = psit_shuffle(train.concat(test))
+    psit_shuffle(train.slice())
+    psit_shuffle(test.slice())
+
+    // task.js lines 167-178: unique input symbols → shuffle → assign words
+    let input_symbols = Array.from(new Set(stims.flatMap((s) => s[0].trim().split(' '))))
+    input_symbols = psit_shuffle(input_symbols)
+    for (const sym of input_symbols) {
+      if (!(sym in input_dict)) input_dict[sym] = words.shift()
     }
-    // No two symbols share the same word
-    const words = Object.values(input_dict)
-    expect(new Set(words).size).toBe(words.length)
-  })
 
-  // Original: each output symbol (c1-c6) gets one unique color from colors pool
-  it('each unique output symbol is assigned exactly one color from COLORS', () => {
-    const { output_dict } = makeGrounding()
-    const outputSymbols = [...new Set([
-      ...stims4_train.flatMap((s) => s[1].trim().split(' ')),
-    ])]
-    for (const sym of outputSymbols) {
-      expect(COLORS).toContain(output_dict[sym])
-    }
-    const colors = Object.values(output_dict)
-    expect(new Set(colors).size).toBe(colors.length)
-  })
-
-  // Original: output_dict_reverse[color] = symbol (inverse mapping)
-  it('output_dict_reverse is the inverse of output_dict', () => {
-    const { output_dict, output_dict_reverse } = makeGrounding()
-    for (const [sym, color] of Object.entries(output_dict)) {
-      expect(output_dict_reverse[color]).toBe(sym)
-    }
-  })
-
-  // Original: unmapped colors → output_dict_reverse[color] = 'undefined_action'
-  it('unused colors in output_dict_reverse map to "undefined_action"', () => {
-    const { output_dict, output_dict_reverse } = makeGrounding()
-    const usedColors = new Set(Object.values(output_dict))
-    for (const color of COLORS) {
-      if (!usedColors.has(color)) {
-        expect(output_dict_reverse[color]).toBe('undefined_action')
+    // task.js lines 181-196: unique output symbols → shuffle → assign colors
+    let output_symbols = Array.from(new Set(stims.flatMap((s) => s[1].trim().split(' '))))
+    output_symbols = psit_shuffle(output_symbols)
+    for (const sym of output_symbols) {
+      if (!(sym in output_dict)) {
+        const color = colors.shift()
+        output_dict[sym] = color
+        output_dict_reverse[color] = sym
       }
     }
+
+    // task.js line 511: next() initial call consumes one more shuffle
+    psit_shuffle(psit_remove_singletons(train).slice())
+  }
+
+  // task.js lines 197-199
+  for (const color of colors) {
+    output_dict_reverse[color] = 'undefined_action'
+  }
+
+  return { input_dict, output_dict, output_dict_reverse }
+}
+
+// ===========================================================================
+// 1. Stimuli data — Smile arrays exactly match scan_stimuli_simple.js
+// ===========================================================================
+
+describe('Smile stimuli match scan_stimuli_simple.js (both executed)', () => {
+  it('WORDS matches psit_words exactly', () => {
+    expect(WORDS).toEqual(psit_words)
+  })
+
+  it('COLORS matches psit_colors exactly (pre-shuffle pool)', () => {
+    expect(COLORS).toEqual(psit_colors)
+  })
+
+  it('stims1_train equals psit_stims1_train', () => expect(stims1_train).toEqual(psit_stims1_train))
+  it('stims1_test  equals psit_stims1_test',  () => expect(stims1_test).toEqual(psit_stims1_test))
+  it('stims2_train equals psit_stims2_train', () => expect(stims2_train).toEqual(psit_stims2_train))
+  it('stims2_test  equals psit_stims2_test',  () => expect(stims2_test).toEqual(psit_stims2_test))
+  it('stims3_train equals psit_stims3_train', () => expect(stims3_train).toEqual(psit_stims3_train))
+  it('stims3_test  equals psit_stims3_test',  () => expect(stims3_test).toEqual(psit_stims3_test))
+
+  it('stims4_train equals psit_stims4_train (trailing space trimmed in Smile)', () => {
+    const norm = (arr) => arr.map(([i, o]) => [i.trim(), o.trim()])
+    expect(norm(stims4_train)).toEqual(norm(psit_stims4_train))
+  })
+
+  it('stims4_test equals psit_stims4_test (trailing space trimmed in Smile)', () => {
+    const norm = (arr) => arr.map(([i, o]) => [i.trim(), o.trim()])
+    expect(norm(stims4_test)).toEqual(norm(psit_stims4_test))
+  })
+
+  it('subtasks_train wraps [stims1_train, stims2_train, stims3_train]', () => {
+    expect(subtasks_train).toEqual(psit_subtasks_train)
+  })
+
+  it('subtasks_test wraps [stims1_test, stims2_test, stims3_test]', () => {
+    expect(subtasks_test).toEqual(psit_subtasks_test)
   })
 })
 
 // ===========================================================================
-// 4. convertCommandToWords — matches task.js convert_command_to_words
+// 2. removeSingletons — Smile vs psit_remove_singletons (both executed)
 // ===========================================================================
 
-describe('convertCommandToWords matches task.js convert_command_to_words', () => {
-  // Original: splits command by ' ', maps each token via input_dict, rejoins with ' '
-  it('converts a single-symbol command using input_dict', () => {
-    const input_dict = { p1: 'dax', p2: 'lug' }
-    expect(convertCommandToWords('p1', input_dict)).toBe('dax')
-  })
+describe('removeSingletons matches task.js remove_singletons (both executed)', () => {
+  const stages = [
+    ['stage 1 train', psit_stims1_train, stims1_train],
+    ['stage 2 train', psit_stims2_train, stims2_train],
+    ['stage 3 train', psit_stims3_train, stims3_train],
+    ['stage 4 train', psit_stims4_train, stims4_train],
+  ]
 
-  it('converts a multi-symbol command preserving order', () => {
-    const input_dict = { p1: 'dax', m1: 'wif' }
-    expect(convertCommandToWords('p1 m1', input_dict)).toBe('dax wif')
-  })
+  for (const [label, psitStims, smileStims] of stages) {
+    it(`${label}: Smile result equals psiturk result`, () => {
+      expect(removeSingletons(smileStims)).toEqual(psit_remove_singletons(psitStims))
+    })
 
-  it('converts a three-symbol command in correct order', () => {
-    const input_dict = { p3: 'kiki', m2: 'tufa', p1: 'dax' }
-    expect(convertCommandToWords('p3 m2 p1', input_dict)).toBe('kiki tufa dax')
-  })
+    it(`${label}: every returned item has > 1 token`, () => {
+      for (const stim of removeSingletons(smileStims)) {
+        expect(stim[0].trim().split(' ').length).toBeGreaterThan(1)
+      }
+    })
+  }
 
-  it('different token orderings yield different outputs', () => {
-    const input_dict = { p1: 'dax', p2: 'lug', m1: 'wif' }
-    expect(convertCommandToWords('p1 m1 p2', input_dict)).toBe('dax wif lug')
-    expect(convertCommandToWords('p2 m1 p1', input_dict)).toBe('lug wif dax')
-  })
-})
-
-// ===========================================================================
-// 5. removeSingletons — matches task.js remove_singletons
-// ===========================================================================
-
-describe('removeSingletons matches task.js remove_singletons', () => {
-  // Original: filters out stimuli where input.split(' ').length === 1
-  it('removes the 4 primitive commands from stage 1 training, leaving 2 quiz stimuli', () => {
-    // p1, p2, p3, p4 are singletons; 'p1 m1' and 'p2 m1' are not
-    expect(removeSingletons(stims1_train).length).toBe(2)
-  })
-
-  it('removes the 4 primitives from stage 2 training, leaving 2 quiz stimuli', () => {
-    expect(removeSingletons(stims2_train).length).toBe(2)
-  })
-
-  it('removes the 4 primitives from stage 3 training, leaving 2 quiz stimuli', () => {
-    expect(removeSingletons(stims3_train).length).toBe(2)
-  })
-
-  it('every item returned has more than one input token', () => {
-    const filtered = removeSingletons(stims4_train)
-    for (const stim of filtered) {
-      expect(stim[0].trim().split(' ').length).toBeGreaterThan(1)
-    }
-  })
-
-  it('does not mutate the original array', () => {
+  it('does not mutate the source array', () => {
     const before = stims1_train.length
     removeSingletons(stims1_train)
     expect(stims1_train.length).toBe(before)
@@ -237,208 +369,376 @@ describe('removeSingletons matches task.js remove_singletons', () => {
 })
 
 // ===========================================================================
-// 6. redactOutput — matches task.js remove_element
+// 3. redactOutput — Smile vs psit_remove_element (both executed)
 // ===========================================================================
 
-describe('redactOutput matches task.js remove_element', () => {
-  // Original: replaces stim[1] with special_redacted_symbol ('REDACTED') for the target stim
-  it('replaces the target stim output with REDACTED_SYMBOL', () => {
-    const result = redactOutput(stims1_train, 'p1 m1')
-    expect(result.find((s) => s[0] === 'p1 m1')[1]).toBe(REDACTED_SYMBOL)
+describe('redactOutput matches task.js remove_element (both executed)', () => {
+  it('Smile and psiturk produce the same array for a compound train stim', () => {
+    const targetInput = 'p1 m1'
+    expect(redactOutput(stims1_train, targetInput))
+      .toEqual(psit_remove_element(psit_stims1_train, findPsitStimByInput(psit_stims1_train, targetInput)))
   })
 
-  it('leaves all other outputs unchanged', () => {
-    const result = redactOutput(stims1_train, 'p1 m1')
-    for (const stim of result) {
-      if (stim[0] !== 'p1 m1') {
-        expect(stim[1]).toBe(stims1_train.find((s) => s[0] === stim[0])[1])
+  it('both replace only the target output with REDACTED', () => {
+    const targetInput = 'p3 m2 p1'
+    const smileResult = redactOutput(stims2_train, targetInput)
+    const psitResult  = psit_remove_element(psit_stims2_train, findPsitStimByInput(psit_stims2_train, targetInput))
+    expect(smileResult).toEqual(psitResult)
+    expect(smileResult.find((s) => s[0] === targetInput)[1]).toBe(REDACTED_SYMBOL)
+  })
+
+  it('both leave all other outputs unchanged', () => {
+    const targetInput = 'p2 m1'
+    const smileResult = redactOutput(stims1_train, targetInput)
+    const psitResult  = psit_remove_element(psit_stims1_train, findPsitStimByInput(psit_stims1_train, targetInput))
+    for (const stim of smileResult) {
+      if (stim[0] !== targetInput) {
+        expect(stim[1]).toBe(psitResult.find((s) => s[0] === stim[0])[1])
       }
     }
   })
 
-  it('returns an array of the same length as the input', () => {
+  it('returns an array the same length as the input', () => {
     expect(redactOutput(stims1_train, 'p1').length).toBe(stims1_train.length)
+    expect(psit_remove_element(psit_stims1_train, findPsitStimByInput(psit_stims1_train, 'p1')).length).toBe(psit_stims1_train.length)
   })
 
-  // Original uses slice() to avoid mutating the source array
-  it('does not mutate the original stims array', () => {
+  it('neither implementation mutates the source array', () => {
     const origOutputs = stims1_train.map((s) => s[1])
     redactOutput(stims1_train, 'p1 m1')
+    psit_remove_element(psit_stims1_train, findPsitStimByInput(psit_stims1_train, 'p1 m1'))
     expect(stims1_train.map((s) => s[1])).toEqual(origOutputs)
   })
 })
 
 // ===========================================================================
-// 7. hasPassed — matches task.js cycle pass/fail logic
+// 4. hasPassed — Smile vs psit_hasPassed (both executed)
 // ===========================================================================
 
-describe('hasPassed matches task.js cycle pass/fail logic', () => {
-  // Original: epoch_count - epoch_correct <= flex_threshold || cycle_count === max_cycle_count
-  // flex_threshold = 0 for stages 1-3, flex_threshold = 1 for stage 4
-  // max_cycle_count = 3
-
+describe('hasPassed matches task.js next() pass condition (both executed)', () => {
   it('MAX_CYCLES is 3, matching max_cycle_count in task.js', () => {
     expect(MAX_CYCLES).toBe(3)
   })
 
-  it('stages 1-3 (flex=0): passes only when there are zero errors', () => {
-    expect(hasPassed(6, 6, 0, 1)).toBe(true)
-    expect(hasPassed(6, 5, 0, 1)).toBe(false)
-    expect(hasPassed(6, 0, 0, 1)).toBe(false)
+  const cases = [
+    [6, 6, 0, 1],   // perfect pass
+    [6, 5, 0, 1],   // one error, flex=0 → fail
+    [6, 0, 0, 1],   // many errors, flex=0 → fail
+    [10, 9, 1, 1],  // one error, flex=1 → pass
+    [10, 8, 1, 1],  // two errors, flex=1 → fail
+    [6, 0, 0, 3],   // max cycle → always pass
+    [10, 0, 1, 3],  // max cycle → always pass
+  ]
+
+  for (const [ec, eCorr, flex, cycle] of cases) {
+    it(`(${ec},${eCorr},flex=${flex},cycle=${cycle}): Smile === psiturk`, () => {
+      expect(hasPassed(ec, eCorr, flex, cycle)).toBe(psit_hasPassed(ec, eCorr, flex, cycle))
+    })
+  }
+})
+
+// ===========================================================================
+// 5. convertCommandToWords — Smile vs psit_convert_command_to_words (both executed)
+// ===========================================================================
+
+describe('convertCommandToWords matches task.js convert_command_to_words (both executed)', () => {
+  const dict = { p1: 'dax', p2: 'lug', p3: 'kiki', m1: 'wif', m2: 'tufa' }
+
+  for (const cmd of ['p1', 'p1 m1', 'p3 m2 p1', 'p2 m1 p3']) {
+    it(`"${cmd}": Smile === psiturk`, () => {
+      expect(convertCommandToWords(cmd, dict)).toBe(psit_convert_command_to_words(cmd, dict))
+    })
+  }
+})
+
+// ===========================================================================
+// 6. actionsToColors and parseResponse — Smile vs psiturk (both executed)
+// ===========================================================================
+
+describe('actionsToColors/parseResponse match task.js (both executed)', () => {
+  function makeTestGrounding(seed) {
+    const fixedOrder = [
+      { train: stims1_train, test: stims1_test, flexThreshold: 0 },
+      { train: stims2_train, test: stims2_test, flexThreshold: 0 },
+      { train: stims3_train, test: stims3_test, flexThreshold: 0 },
+      { train: stims4_train, test: stims4_test, flexThreshold: 1 },
+    ]
+    return withSeed(seed, () => createGrounding(fixedOrder, [...WORDS], [...COLORS]))
+  }
+
+  it('actionsToColors(Smile) === psit_actions_to_colors for single action', () => {
+    const g = makeTestGrounding(42)
+    expect(actionsToColors('c1', g.output_dict))
+      .toBe(psit_actions_to_colors('c1', g.output_dict))
   })
 
-  it('stage 4 (flex=1): passes when errors <= 1', () => {
-    expect(hasPassed(10, 10, 1, 1)).toBe(true)
-    expect(hasPassed(10, 9,  1, 1)).toBe(true)
-    expect(hasPassed(10, 8,  1, 1)).toBe(false)
+  it('actionsToColors(Smile) === psit_actions_to_colors for action sequence', () => {
+    const g = makeTestGrounding(42)
+    expect(actionsToColors('c1 c2 c3', g.output_dict))
+      .toBe(psit_actions_to_colors('c1 c2 c3', g.output_dict))
   })
 
-  it('always passes when cycle_count equals MAX_CYCLES, regardless of errors', () => {
-    expect(hasPassed(6, 0, 0, MAX_CYCLES)).toBe(true)
-    expect(hasPassed(10, 0, 1, MAX_CYCLES)).toBe(true)
+  it('parseResponse(Smile) === psit_process_response for a color style sequence', () => {
+    const g = makeTestGrounding(42)
+    const styles = ['c1', 'c2', 'c1'].map((a) => `color:${g.output_dict[a]};`)
+    expect(parseResponse(styles, g.output_dict_reverse))
+      .toBe(psit_process_response(styles, g.output_dict_reverse))
+  })
+
+  it('parseResponse is the inverse of actionsToColors (round-trip)', () => {
+    const g = makeTestGrounding(7)
+    const original = 'c2 c3 c2'
+    const colorStr = actionsToColors(original, g.output_dict)
+    const styles = colorStr.split(' ').map((c) => `color:${c};`)
+    expect(parseResponse(styles, g.output_dict_reverse)).toBe(original)
+  })
+
+  it('parseResponse returns empty string for empty input', () => {
+    const g = makeTestGrounding(1)
+    expect(parseResponse([], g.output_dict_reverse)).toBe('')
   })
 })
 
 // ===========================================================================
-// 8. buildStageOrder — matches task.js stage sequencing logic
+// 7. buildStageOrder — Smile vs psit (both executed, seeded)
 // ===========================================================================
 
-describe('buildStageOrder matches task.js stage sequencing', () => {
-  // Original:
-  //   myzip = _.shuffle(myzip)  → stages 1-3 shuffled as pairs
-  //   stage 4 always runs last via: else if (stage_count == npre)
-  //   flex_threshold = 0 for pre stages, 1 for stage 4
-
-  it('returns exactly 4 stages', () => {
-    const stages = buildStageOrder(subtasks_train, subtasks_test, stims4_train, stims4_test)
-    expect(stages.length).toBe(4)
+describe('buildStageOrder matches task.js stage ordering (both executed, seeded)', () => {
+  it('always returns exactly 4 stages', () => {
+    withSeed(1, () => {
+      expect(buildStageOrder(subtasks_train, subtasks_test, stims4_train, stims4_test).length).toBe(4)
+    })
   })
 
-  it('stage 4 is always last (index 3), matching the original fixed post-stage', () => {
-    for (let i = 0; i < 20; i++) {
-      const stages = buildStageOrder(subtasks_train, subtasks_test, stims4_train, stims4_test)
-      expect(stages[3].train).toBe(stims4_train)
-      expect(stages[3].test).toBe(stims4_test)
+  it('stage 4 is always last with flexThreshold=1, regardless of seed', () => {
+    for (const seed of [1, 42, 100, 999]) {
+      withSeed(seed, () => {
+        const stages = buildStageOrder(subtasks_train, subtasks_test, stims4_train, stims4_test)
+        expect(stages[3].train).toBe(stims4_train)
+        expect(stages[3].test).toBe(stims4_test)
+        expect(stages[3].flexThreshold).toBe(1)
+      })
     }
   })
 
-  it('stage 4 has flexThreshold of 1, matching the original flex_threshold argument', () => {
-    const stages = buildStageOrder(subtasks_train, subtasks_test, stims4_train, stims4_test)
-    expect(stages[3].flexThreshold).toBe(1)
-  })
-
-  it('stages 0-2 are a shuffled permutation of subtasks_train/test pairs', () => {
-    const stages = buildStageOrder(subtasks_train, subtasks_test, stims4_train, stims4_test)
-    const preTrainSets = stages.slice(0, 3).map((s) => s.train)
-    expect(preTrainSets).toEqual(expect.arrayContaining(subtasks_train))
-  })
-
-  it('train/test pairs are kept together (not mixed across stages)', () => {
-    // Original: myzip = subtasks_train.map((e, i) => [e, subtasks_test[i]]) then shuffle
-    const stages = buildStageOrder(subtasks_train, subtasks_test, stims4_train, stims4_test)
-    for (const stage of stages.slice(0, 3)) {
-      const idx = subtasks_train.indexOf(stage.train)
-      expect(idx).toBeGreaterThanOrEqual(0)
-      expect(stage.test).toBe(subtasks_test[idx])
+  it('stages 0-2 are a valid permutation of subtasks pairs with flexThreshold=0', () => {
+    for (const seed of [1, 42, 100]) {
+      withSeed(seed, () => {
+        const stages = buildStageOrder(subtasks_train, subtasks_test, stims4_train, stims4_test)
+        const preTrains = stages.slice(0, 3).map((s) => s.train)
+        expect(preTrains).toEqual(expect.arrayContaining(subtasks_train))
+        for (const stage of stages.slice(0, 3)) {
+          expect(stage.flexThreshold).toBe(0)
+        }
+      })
     }
   })
 
-  it('stages 0-2 have flexThreshold of 0', () => {
-    const stages = buildStageOrder(subtasks_train, subtasks_test, stims4_train, stims4_test)
-    for (const stage of stages.slice(0, 3)) {
-      expect(stage.flexThreshold).toBe(0)
+  it('train/test pairs stay together across shuffles', () => {
+    for (const seed of [1, 42, 100]) {
+      withSeed(seed, () => {
+        const stages = buildStageOrder(subtasks_train, subtasks_test, stims4_train, stims4_test)
+        for (const stage of stages.slice(0, 3)) {
+          const idx = subtasks_train.indexOf(stage.train)
+          expect(idx).toBeGreaterThanOrEqual(0)
+          expect(stage.test).toBe(subtasks_test[idx])
+        }
+      })
     }
   })
 
-  it('shuffles the pre-stages (not always the same order)', () => {
+  it('pre-stages are shuffled (not always the same order across seeds)', () => {
     const orders = new Set()
-    for (let i = 0; i < 50; i++) {
-      const stages = buildStageOrder(subtasks_train, subtasks_test, stims4_train, stims4_test)
-      orders.add(stages.slice(0, 3).map((s) => subtasks_train.indexOf(s.train)).join(','))
+    for (let seed = 0; seed < 50; seed++) {
+      withSeed(seed, () => {
+        const stages = buildStageOrder(subtasks_train, subtasks_test, stims4_train, stims4_test)
+        orders.add(stages.slice(0, 3).map((s) => subtasks_train.indexOf(s.train)).join(','))
+      })
     }
     expect(orders.size).toBeGreaterThan(1)
   })
-})
 
-// ===========================================================================
-// 9. parseResponse — matches task.js process_response
-// ===========================================================================
-
-describe('parseResponse matches task.js process_response', () => {
-  // Original: extracts color from style string 'color:#ff0000;', maps via output_dict_reverse
-  it('parses a sequence of color style strings into abstract actions', () => {
-    const { output_dict, output_dict_reverse } = makeGrounding()
-    const styles = [`color:${output_dict['c1']};`, `color:${output_dict['c2']};`]
-    expect(parseResponse(styles, output_dict_reverse)).toBe('c1 c2')
-  })
-
-  it('handles repeated colors (same circle dragged multiple times)', () => {
-    const { output_dict, output_dict_reverse } = makeGrounding()
-    const c1 = output_dict['c1']
-    expect(parseResponse([`color:${c1};`, `color:${c1};`, `color:${c1};`], output_dict_reverse)).toBe('c1 c1 c1')
-  })
-
-  it('preserves order of circles', () => {
-    const { output_dict, output_dict_reverse } = makeGrounding()
-    const styles = [`color:${output_dict['c4']};`, `color:${output_dict['c2']};`]
-    expect(parseResponse(styles, output_dict_reverse)).toBe('c4 c2')
-  })
-
-  it('returns empty string for empty response (original: myresponse.length === 0 check)', () => {
-    const { output_dict_reverse } = makeGrounding()
-    expect(parseResponse([], output_dict_reverse)).toBe('')
+  /**
+   * Both buildStageOrder (Smile) and psit_buildStageOrder use the same modern
+   * underscore shuffle semantics. Starting from the same seed with no
+   * preceding PRNG calls, they must produce the same position permutation.
+   */
+  it('Smile position permutation matches psit for the same seed (isolated)', () => {
+    for (const seed of [1, 42, 100, 999, 12345]) {
+      const smilePos = withSeed(seed, () => {
+        const stages = buildStageOrder(subtasks_train, subtasks_test, stims4_train, stims4_test)
+        return stages.slice(0, 3).map((s) => subtasks_train.indexOf(s.train))
+      })
+      const psitPos = withSeed(seed, () => {
+        const stages = psit_buildStageOrder()
+        return stages.slice(0, 3).map((s) => psit_subtasks_train.indexOf(s.train))
+      })
+      expect(smilePos).toEqual(psitPos)
+    }
   })
 })
 
 // ===========================================================================
-// 10. actionsToColors — matches task.js actions_to_colors
+// 8. getScanSeedSignature — seed invalidation policy
 // ===========================================================================
 
-describe('actionsToColors matches task.js actions_to_colors', () => {
-  // Original: splits by ' ', maps each via output_dict, rejoins with ' '
-  it('converts a single abstract action to its color', () => {
-    const { output_dict } = makeGrounding()
-    expect(actionsToColors('c1', output_dict)).toBe(output_dict['c1'])
+describe('getScanSeedSignature matches expected seed-selection policy', () => {
+  it('prefers URL seed when present', () => {
+    expect(getScanSeedSignature({ urlSeed: '42', useSeed: true, seedID: 'abc' })).toBe('url:42')
   })
 
-  it('converts a sequence of abstract actions to a color string', () => {
-    const { output_dict } = makeGrounding()
-    expect(actionsToColors('c1 c2 c3', output_dict))
-      .toBe(`${output_dict['c1']} ${output_dict['c2']} ${output_dict['c3']}`)
+  it('uses the Smile fixed seed when no URL seed is present', () => {
+    expect(getScanSeedSignature({ urlSeed: null, useSeed: true, seedID: 'abc123' })).toBe('store:abc123')
   })
 
-  it('is the inverse of parseResponse (round-trip)', () => {
-    const { output_dict, output_dict_reverse } = makeGrounding()
-    const original = 'c2 c3 c2'
-    const colorStr = actionsToColors(original, output_dict)
-    const styles = colorStr.split(' ').map((c) => `color:${c};`)
-    expect(parseResponse(styles, output_dict_reverse)).toBe(original)
+  it('returns null when fixed seeding is disabled', () => {
+    expect(getScanSeedSignature({ urlSeed: null, useSeed: false, seedID: 'abc123' })).toBeNull()
+  })
+
+  it('returns null when no fixed seed ID is available', () => {
+    expect(getScanSeedSignature({ urlSeed: null, useSeed: true, seedID: '' })).toBeNull()
   })
 })
 
 // ===========================================================================
-// 11. Trial data fields — match psiTurk.recordTrialData() calls in task.js
+// 9. createGrounding — Smile vs psit per-stage algorithm (both executed, seeded)
+//
+// To isolate the grounding ALGORITHM from the stage-ordering and initial pool
+// shuffles, we pass a fixed stage order and identical pools to both functions.
+// With the same seed, any difference in the resulting dicts reveals a logic bug.
+// ===========================================================================
+
+describe('createGrounding matches task.js grounding algorithm (both executed, seeded)', () => {
+  const fixedStageOrder = [
+    { train: stims1_train, test: stims1_test, flexThreshold: 0 },
+    { train: stims2_train, test: stims2_test, flexThreshold: 0 },
+    { train: stims3_train, test: stims3_test, flexThreshold: 0 },
+    { train: stims4_train, test: stims4_test, flexThreshold: 1 },
+  ]
+  const psitFixedOrder = [
+    { train: psit_stims1_train, test: psit_stims1_test },
+    { train: psit_stims2_train, test: psit_stims2_test },
+    { train: psit_stims3_train, test: psit_stims3_test },
+    { train: psit_stims4_train, test: psit_stims4_test },
+  ]
+
+  it('input_dict matches psiturk per-stage logic for multiple seeds', () => {
+    for (const seed of [1, 42, 100, 999]) {
+      const psit  = withSeed(seed, () =>
+        psit_buildGroundingFromOrder(psitFixedOrder, [...psit_words], [...psit_colors])
+      )
+      const smile = withSeed(seed, () =>
+        createGrounding(fixedStageOrder, [...WORDS], [...COLORS])
+      )
+      expect(smile.input_dict).toEqual(psit.input_dict)
+    }
+  })
+
+  it('output_dict matches psiturk per-stage logic for multiple seeds', () => {
+    for (const seed of [1, 42, 100, 999]) {
+      const psit  = withSeed(seed, () =>
+        psit_buildGroundingFromOrder(psitFixedOrder, [...psit_words], [...psit_colors])
+      )
+      const smile = withSeed(seed, () =>
+        createGrounding(fixedStageOrder, [...WORDS], [...COLORS])
+      )
+      expect(smile.output_dict).toEqual(psit.output_dict)
+    }
+  })
+
+  it('output_dict_reverse matches psiturk per-stage logic for multiple seeds', () => {
+    for (const seed of [1, 42, 100, 999]) {
+      const psit  = withSeed(seed, () =>
+        psit_buildGroundingFromOrder(psitFixedOrder, [...psit_words], [...psit_colors])
+      )
+      const smile = withSeed(seed, () =>
+        createGrounding(fixedStageOrder, [...WORDS], [...COLORS])
+      )
+      expect(smile.output_dict_reverse).toEqual(psit.output_dict_reverse)
+    }
+  })
+
+  it('every input symbol maps to a unique word from WORDS', () => {
+    withSeed(42, () => {
+      const g = createGrounding(fixedStageOrder, [...WORDS], [...COLORS])
+      const wordValues = Object.values(g.input_dict)
+      for (const w of wordValues) expect(WORDS).toContain(w)
+      expect(new Set(wordValues).size).toBe(wordValues.length)
+    })
+  })
+
+  it('every output symbol maps to a unique color from COLORS', () => {
+    withSeed(42, () => {
+      const g = createGrounding(fixedStageOrder, [...WORDS], [...COLORS])
+      const colorValues = Object.values(g.output_dict)
+      for (const c of colorValues) expect(COLORS).toContain(c)
+      expect(new Set(colorValues).size).toBe(colorValues.length)
+    })
+  })
+
+  it('output_dict_reverse is the exact inverse of output_dict', () => {
+    withSeed(42, () => {
+      const g = createGrounding(fixedStageOrder, [...WORDS], [...COLORS])
+      for (const [sym, color] of Object.entries(g.output_dict)) {
+        expect(g.output_dict_reverse[color]).toBe(sym)
+      }
+    })
+  })
+
+  it('unused colors in output_dict_reverse map to "undefined_action"', () => {
+    withSeed(42, () => {
+      const g = createGrounding(fixedStageOrder, [...WORDS], [...COLORS])
+      const used = new Set(Object.values(g.output_dict))
+      for (const color of COLORS) {
+        if (!used.has(color)) {
+          expect(g.output_dict_reverse[color]).toBe('undefined_action')
+        }
+      }
+    })
+  })
+
+  it('all 7 primitive/modifier input symbols (p1-p4, m1-m3) are assigned', () => {
+    withSeed(1, () => {
+      const g = createGrounding(fixedStageOrder, [...WORDS], [...COLORS])
+      for (const sym of ['p1', 'p2', 'p3', 'p4', 'm1', 'm2', 'm3']) {
+        expect(g.input_dict[sym]).toBeDefined()
+      }
+    })
+  })
+})
+
+// ===========================================================================
+// 10. Trial data fields — match psiturk.recordTrialData() calls in task.js
 // ===========================================================================
 
 describe('Trial data fields match task.js recordTrialData calls', () => {
-  // Original recordTrialData fields:
-  // { phase, abs_input, raw_input, abs_target, raw_target, abs_response, raw_response, correct, cycle, learning_stage, rt }
-  it('study trial (response_train) has all required fields', () => {
-    const { input_dict, output_dict, output_dict_reverse } = makeGrounding()
+  function makeTestGrounding(seed) {
+    const fixedOrder = [
+      { train: stims1_train, test: stims1_test, flexThreshold: 0 },
+      { train: stims2_train, test: stims2_test, flexThreshold: 0 },
+      { train: stims3_train, test: stims3_test, flexThreshold: 0 },
+      { train: stims4_train, test: stims4_test, flexThreshold: 1 },
+    ]
+    return withSeed(seed, () => createGrounding(fixedOrder, [...WORDS], [...COLORS]))
+  }
+
+  it('study trial has all required fields matching task.js recordTrialData', () => {
+    const g = makeTestGrounding(42)
+    const { input_dict, output_dict } = g
     const stim = stims1_train.find((s) => s[0] === 'p1 m1')
-    const rawInput = convertCommandToWords(stim[0], input_dict)
-    const absResponse = 'c1 c1 c1'
-    const rawResponseStyles = absResponse.split(' ').map((a) => `color:${output_dict[a]};`)
+
+    const abs_response = stim[1]
+    const raw_response_styles = abs_response.split(' ').map((a) => `color:${output_dict[a]};`)
 
     const trialData = {
       phase: 'response_train',
       abs_input: stim[0],
-      raw_input: rawInput,
+      raw_input: convertCommandToWords(stim[0], input_dict),
       abs_target: stim[1],
       raw_target: actionsToColors(stim[1], output_dict),
-      abs_response: absResponse,
-      raw_response: rawResponseStyles.join(' '),
-      correct: absResponse === stim[1],
+      abs_response,
+      raw_response: raw_response_styles.join(' '),
+      correct: abs_response === stim[1],
       cycle: 1,
       learning_stage: 0,
       rt: 4200,
@@ -446,16 +746,24 @@ describe('Trial data fields match task.js recordTrialData calls', () => {
 
     expect(trialData.phase).toBe('response_train')
     expect(trialData.abs_input).toBe('p1 m1')
-    expect(trialData.raw_input).toBe(rawInput)
     expect(trialData.abs_target).toBe('c1 c1 c1')
     expect(trialData.correct).toBe(true)
     expect(typeof trialData.rt).toBe('number')
     expect(typeof trialData.learning_stage).toBe('number')
     expect(typeof trialData.cycle).toBe('number')
+    // raw_input must be pseudo-words, not abstract symbols
+    expect(trialData.raw_input).not.toContain('p1')
+    expect(trialData.raw_input).not.toContain('m1')
+    // raw_target must contain hex color strings
+    expect(trialData.raw_target).toMatch(/#[0-9a-f]{6}/)
+    // Psit functions produce the same raw values
+    expect(trialData.raw_input).toBe(psit_convert_command_to_words(stim[0], input_dict))
+    expect(trialData.raw_target).toBe(psit_actions_to_colors(stim[1], output_dict))
   })
 
-  it('test trial has phase "test" and correct field', () => {
-    const { input_dict, output_dict } = makeGrounding()
+  it('test trial has phase "test" and cycle -1 matching task.js', () => {
+    const g = makeTestGrounding(42)
+    const { input_dict, output_dict } = g
     const stim = stims1_test[0]
     const trialData = {
       phase: 'test',
@@ -463,14 +771,15 @@ describe('Trial data fields match task.js recordTrialData calls', () => {
       raw_input: convertCommandToWords(stim[0], input_dict),
       abs_target: stim[1],
       raw_target: actionsToColors(stim[1], output_dict),
-      abs_response: 'c4 c4 c4',
+      abs_response: stim[1],
       raw_response: '',
-      correct: 'c4 c4 c4' === stim[1],
+      correct: true,
       cycle: -1,
       learning_stage: 0,
       rt: 3100,
     }
     expect(trialData.phase).toBe('test')
     expect(trialData.cycle).toBe(-1)
+    expect(trialData.correct).toBe(true)
   })
 })

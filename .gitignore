@@ -55,3 +55,4 @@ analysis/notebooks/__marimo__/session
 
 # Ignore psiturk experiment files
 psiturk-example-v2
+.tmp*

@@ -74,6 +74,7 @@ function makeDemoCircle(color, cssClass) {
 
 function demoReset() {
   $('#DEMO_response_array').html('')
+  demoMsg.value = ''
 }
 
 // Mirrors instruct-2.html check_response() and submit()
@@ -106,10 +107,18 @@ function demoSubmit() {
       <hr />
 
       <div class="instructions-well">
+
+        <!-- original: Please read these instructions carefully. You will be quizzed on their content before the experiment begins.  -->
+
         <p>
           Please read these instructions carefully. You will be quizzed on their content before
           the experiment begins.
         </p>
+
+
+        <!-- Original: This study has to do with how people learn input-output associations.
+          You will be asked to learn a set of commands and their corresponding outputs. 
+          Each command is a series of nonsense words, and the output for a command is a series of colored circles. -->
 
         <p>
           This study has to do with how people learn input-output associations. You will be asked
@@ -117,13 +126,27 @@ function demoSubmit() {
           nonsense words, and the output for a command is a series of colored circles.
         </p>
 
+        <!-- Original: The HIT is divided into <b>4 stages</b>. 
+         Each stage will introduce new commands for you to learn, although some commands are shared across stages. 
+         Each stage has both a study phase and a test phase, as described below: -->
+
+         <!--<ul>
+         <li><b>Study phases.</b> 
+          For each stage, the study phase asks you to study a set of input-output associations. 
+          To evaluate your learning, you will be asked to reproduce the correct output for each input command.
+           You will repeatedly cycle through the items until you produce them correctly (or you complete three cycles). 
+           Corrective feedback will be provided.
+           <li><b>Test phases.</b> For each stage, the test phase will show you novel input commands, and your task is to predict their outputs.
+           You will have access to the study list for reference. No feedback will be provided during this phase.
+           </li>
+        </ul> -->
+
         <p>
-          The HIT is divided into <b>4 stages</b>. Each stage will introduce new commands for you
+          The task is divided into <b>4 stages</b>. Each stage will introduce new commands for you
           to learn, although some commands are shared across stages. Each stage has both a study
           phase and a test phase, as described below:
         </p>
-
-        <ul>
+        <ul class="instructions-list">
           <li>
             <b>Study phases.</b> For each stage, the study phase asks you to study a set of
             input-output associations. To evaluate your learning, you will be asked to reproduce
@@ -136,12 +159,19 @@ function demoSubmit() {
             and your task is to predict their outputs. You will have access to the study list for
             reference. No feedback will be provided during this phase.
           </li>
-        </ul>
+        </ul>        
+
+        <!-- Original: After you complete the study and test phases, the next stage will begin.
+          Please be advised that the fourth stage is longer and more difficult than the previous three. -->
 
         <p>
           After you complete the study and test phases, the next stage will begin. Please be
           advised that the fourth stage is longer and more difficult than the previous three.
         </p>
+
+        <!-- Please only use the information on the screen to complete the task.
+         Do not take notes or use external aids to help with the task (do not use pen and paper, take a screen shot, etc.).
+         This is important for the scientific validity of the study. -->
 
         <p>
           Please only use the information on the screen to complete the task. Do not take notes or
@@ -167,6 +197,20 @@ function demoSubmit() {
       <h1>Instructions</h1>
       <hr />
 
+      <!-- Original:       p>
+            Here is how to use the response interface. 
+            Please practice making an output response by adding <b>four green circles</b> to the response box.
+             You can enter your response as follows:
+            <dl>
+                <dd>- You can drag the circles from the pool to the response box.</dd>
+                <dd>- Alternatively, you can click the circles in the pool, to move them to the response box.</dd>
+                <dd>- You can drag circles within the response box to re-order them.</dd>
+                <dd>- The Reset button clears the response box.</dd>
+            </dl>
+            Please use the interface below to select your response.
+        </p>
+ -->
+
       <div class="instructions-well">
         <p>
           Here is how to use the response interface. Please practice making an output response by
@@ -189,8 +233,8 @@ function demoSubmit() {
         <br />
 
         Response:
-        <button id="DEMO_reset_button" class="btn btn-default" @click="demoReset">Reset</button>
-        <ul id="DEMO_response_array" style="border-style: solid; width: 75%; height: 70px" />
+        <button id="DEMO_reset_button" class="btn btn-default" :disabled="demoPassed" @click="demoReset">Reset</button>
+        <ul id="DEMO_response_array" style="width: 75%; height: 70px" />
 
         <br />
         <span id="DEMO_msg">{{ demoMsg }}</span>
@@ -250,7 +294,15 @@ hr {
 
 :deep(#DEMO_source_array li),
 :deep(#DEMO_response_array li) {
-  font-size: 60px;
+  font-size: 42px;
+}
+
+:deep(#DEMO_source_array li) {
+  cursor: pointer;
+}
+
+:deep(#DEMO_response_array) {
+  border: 1px solid black;
 }
 
 :deep(#DEMO_source_array li) span,
@@ -267,6 +319,16 @@ p {
 dl dd {
   margin-left: 1rem;
   margin-bottom: 0.25rem;
+}
+
+.instructions-list {
+  list-style-type: disc;
+  margin-left: 1.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.instructions-list li {
+  margin-bottom: 0.5rem;
 }
 
 .nav-row {
