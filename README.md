@@ -7,10 +7,16 @@ Lake, B. M. and Baroni, M. (2023). Human-like systematic generalization through 
 To run in smile, please install smile as descrbied in the docs. then run:
 <br>
 `npm run dev`
+<br>
+To run with a specific seed, add an argument to the url such as:<br>
+`http://localhost:3020/brendenlake/smile-miniscan/main/#/experiment?seed=42`
 
 To run the original code in the 2023 paper, run as:
 <br>
 `node psiturk-example-v2/serve.js`
+<br>
+To run with a specific seed, an argument like this:<br>
+`http://localhost:3333/?seed=42`
 
 To run tests to compare the two code bases:
 <br>

@@ -61,10 +61,10 @@ export function createGrounding(stageOrder, words, colors, debugStages = null) {
   const output_dict_reverse = {}
 
   for (const [stageIndex, stage] of stageOrder.entries()) {
-    // Mirror ScanExperiment constructor's three stims shuffles
+    // Mirror precompute_grounding's three stims shuffles (draws discarded, matching psiturk)
     const stims = _.shuffle([...stage.train, ...stage.test])
-    _.shuffle(stage.train)  // consume same draws as stims_train shuffle
-    _.shuffle(stage.test)   // consume same draws as stims_test shuffle
+    _.shuffle(stage.train)
+    _.shuffle(stage.test)
 
     // Collect input symbols in shuffled-stim encounter order, then shuffle
     const inputSymbols = []
@@ -101,11 +101,9 @@ export function createGrounding(stageOrder, words, colors, debugStages = null) {
       }
     }
 
-    // Mirror psiturk's next() call at the end of ScanExperiment constructor (line 636):
-    //   stims_orig_epoch = remove_singletons(stims_train)
-    //   stims_epoch = _.shuffle(stims_orig_epoch.slice())
-    // Assumes participant passes each stage on the first study cycle.
-    const epochStims = stage.train.filter(s => s[0].trim().split(' ').length > 1)
+    // Mirror precompute_grounding lines 196-199 in task.js: result discarded, but
+    // consumes PRNG draws to keep the seeded stream in sync with psiturk.
+    const epochStims = stage.train.filter((s) => s[0].trim().split(' ').length > 1)
     _.shuffle(epochStims)
   }
 

@@ -49,6 +49,7 @@ function getTestSeed() {
 }
 
 const _testSeed = getTestSeed()
+const debugMappingVisible = ref(false)
 function applyTestSeed(seedValue) {
   if (seedValue === null) return
 
@@ -68,8 +69,8 @@ const currentSeedSignature = getScanSeedSignature({
   useSeed: api.store.browserPersisted.useSeed,
   seedID: api.store.getSeedID,
 })
-const SCAN_RANDOMIZATION_VERSION = 'underscore-1.13.8'
-const SCAN_DEBUG_BUILD = '2026-04-03-sync-1'
+const SCAN_RANDOMIZATION_VERSION = 'underscore-1.13.8-v2'
+const SCAN_DEBUG_BUILD = '2026-04-09-epoch-fix'
 
 // ---------------------------------------------------------------------------
 // Persistent state: grounding, stage order, pool colors, current stage index.
@@ -80,15 +81,18 @@ function initPersist() {
   // perturb the seeded stream.
   applyTestSeed(_testSeed)
 
-  // Match psiturk's runtime initialization sequence exactly:
+  // Match psiturk's global initialization sequence (precompute_grounding handles per-stage):
   // 1. scan_stimuli_simple.js: colors_scan = _.shuffle(colors_scan)
-  // 2. task.js: apply_test_seed(get_test_seed())
+  //    serve.js injects scanSeedScript BEFORE scan_stimuli_simple.js loads, so this
+  //    shuffle is seeded when ?seed=N is used (not unseeded as originally assumed).
+  // 2. task.js: apply_test_seed(get_test_seed())  — re-seeds with the same seed
   // 3. task.js: myzip = _.shuffle(myzip)  [stage order]
   // 4. task.js: colors = _.shuffle(colors_scan)
   // 5. task.js: words  = _.shuffle(words_scan)
   // 6. task.js: colors_post = _.shuffle(colors)
-  const colorsScan = _.shuffle(COLORS)             // #1
-  applyTestSeed(_testSeed)                         // #2
+  // Per-stage constructor draws (7-9) and epoch draw (10) happen lazily in initStageState/next().
+  const colorsScan = _.shuffle(COLORS)             // #1 — seeded (seed already applied above)
+  applyTestSeed(_testSeed)                         // #2 — re-seed (matches task.js apply_test_seed)
   const stageOrder = buildStageOrder(subtasks_train, subtasks_test, stims4_train, stims4_test) // #3
   const colors = _.shuffle(colorsScan)             // #4
   const words = _.shuffle(WORDS)                   // #5
@@ -227,9 +231,10 @@ const currentStimWords = ref('')
 let cycleCount = 0
 let epochCorrect = 0
 let epochCount = 0
-let stims_epoch = []       // quiz queue for current cycle (non-singletons, shuffled)
-let stims_orig_epoch = []  // used for trial count display
-let stims_test = []        // test queue for current stage
+let stims_epoch = []            // quiz queue for current cycle (non-singletons, shuffled)
+let stims_orig_epoch = []       // used for trial count display
+let stims_train_shuffled = []   // train shuffled at stage init (draw 8); epoch basis
+let stims_test = []             // test queue for current stage
 let currentStim = null     // current [input, output] pair
 let stage = ''             // 'response_train' | 'feedback_train' | 'test'
 let wordon = null
@@ -265,7 +270,7 @@ function next() {
     cycleCount += 1
     epochCorrect = 0
     epochCount = 0
-    stims_orig_epoch = removeSingletons(currentStage().train.slice())
+    stims_orig_epoch = removeSingletons([...stims_train_shuffled])
     stims_epoch = _.shuffle(stims_orig_epoch)
 
     // Show study table (first time or after failure)
@@ -328,7 +333,13 @@ function initStageState() {
   epochCorrect = 0
   epochCount = 0
   stims_epoch = []
-  stims_test = _.shuffle(currentStage().test)
+
+  // Mirror psiturk ScanExperiment constructor's three shuffles (draws 7, 8, 9).
+  // Must happen in this exact order to keep the seeded PRNG stream in sync.
+  _.shuffle([...currentStage().train, ...currentStage().test]) // draw 7: discard
+  stims_train_shuffled = _.shuffle([...currentStage().train])  // draw 8: epoch basis
+  stims_test = _.shuffle([...currentStage().test])             // draw 9: test order
+
   isRepeatCycle.value = false
   repeatMsg.value = ''
   next() // will show study table (fills epoch, sets uiPhase='study_table')
@@ -542,24 +553,29 @@ onMounted(async () => {
   <div class="scan-exp mx-auto max-w-4xl px-6 py-4">
 
     <div v-if="_testSeed !== null" class="scan-debug-panel mb-4">
-      <div class="scan-debug-title">Seed {{ _testSeed }} current-stage mapping (build {{ SCAN_DEBUG_BUILD }})</div>
-      <div class="scan-debug-meta">words: {{ debugPools.words.join(', ') }}</div>
-      <div class="scan-debug-meta">colors: {{ debugPools.colors.join(', ') }}</div>
-      <div class="scan-debug-meta">input order: {{ getCurrentStageDebugInfo().inputSymbols.join(', ') }}</div>
-      <div class="scan-debug-meta">output order: {{ getCurrentStageDebugInfo().outputSymbols.join(', ') }}</div>
-      <div class="scan-debug-grid">
-        <div>
-          <div class="scan-debug-subtitle">Input symbols</div>
-          <div v-for="entry in getCurrentStageInputMappings()" :key="`in-${entry.symbol}`" class="scan-debug-row">
-            <span>{{ entry.symbol }}</span>
-            <span>{{ entry.value }}</span>
+      <div class="scan-debug-title" style="cursor:pointer;user-select:none;" @click="debugMappingVisible = !debugMappingVisible">
+        Seed {{ _testSeed }} current-stage mapping (build {{ SCAN_DEBUG_BUILD }})
+        <span style="font-size:0.8em;margin-left:6px;">{{ debugMappingVisible ? '▲' : '▼' }}</span>
+      </div>
+      <div v-show="debugMappingVisible">
+        <div class="scan-debug-meta">words: {{ debugPools.words.join(', ') }}</div>
+        <div class="scan-debug-meta">colors: {{ debugPools.colors.join(', ') }}</div>
+        <div class="scan-debug-meta">input order: {{ getCurrentStageDebugInfo().inputSymbols.join(', ') }}</div>
+        <div class="scan-debug-meta">output order: {{ getCurrentStageDebugInfo().outputSymbols.join(', ') }}</div>
+        <div class="scan-debug-grid">
+          <div>
+            <div class="scan-debug-subtitle">Input symbols</div>
+            <div v-for="entry in getCurrentStageInputMappings()" :key="`in-${entry.symbol}`" class="scan-debug-row">
+              <span>{{ entry.symbol }}</span>
+              <span>{{ entry.value }}</span>
+            </div>
           </div>
-        </div>
-        <div>
-          <div class="scan-debug-subtitle">Output symbols</div>
-          <div v-for="entry in getCurrentStageOutputMappings()" :key="`out-${entry.symbol}`" class="scan-debug-row">
-            <span>{{ entry.symbol }}</span>
-            <span>{{ entry.value }}</span>
+          <div>
+            <div class="scan-debug-subtitle">Output symbols</div>
+            <div v-for="entry in getCurrentStageOutputMappings()" :key="`out-${entry.symbol}`" class="scan-debug-row">
+              <span>{{ entry.symbol }}</span>
+              <span>{{ entry.value }}</span>
+            </div>
           </div>
         </div>
       </div>
