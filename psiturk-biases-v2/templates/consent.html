@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<!-- 
+  The consent.html displays the text of your IRB-approved
+  consent form.  Even if you are not required to provide
+  a consent form, it is helpful to use this form to 
+  describe what people can do if an error comes up, etc...
+
+-->
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <title>Psychology Experiment - Informed Consent Form</title>
+        <link rel="stylesheet" href="/static/css/bootstrap.min.css" type="text/css" />
+        <link rel="stylesheet" href="/static/css/style.css" type="text/css" />
+        <script type="text/javascript">
+            function onexit() {
+              self.close(); // no harm, no foul here
+            }
+        </script>
+    </head>
+    <body>
+        <div id="container-consent">
+            <div id="consent">
+                <h1>We need your consent to proceed</h1>
+                <hr />
+                <div class="legal well">
+                    
+                    <p>
+                    You are invited to take part in a research study named Concept Learning and Generalization (IRB number IRB-FY2018-1728). The research is being conducted by Professor Brenden M. Lake, who is the principal investigator, at the Department of Psychology and Center for Data Science at New York University. You must be 18 years or older to participate.
+                    </p>
+
+                    <p>
+                    If you agree to be in this study, you may be asked to: look at a series of figures (e.g., abstract symbols or photographs of everyday objects), look at a series words (e.g., nonsense strings such as “dax zif wug”), or watch short videos (e.g., moving symbols or cartoons) and make judgments about them. Participation in this study will take about 10 minutes to complete, and you will receive $1.50 for your participation. When you complete the study, a thorough verbal and written explanation of it will be provided. In addition, by agreeing to participate, you understand that you must be 18 years or older.
+                    </p>
+
+                    <p>
+                    There are no known risks associated with your participation in this research beyond those of everyday life. Although you will receive no direct benefits, this research may help the investigator understand how people learn and generalize concepts.
+                    </p>
+
+                    <p>
+                    Confidentiality of your research records will be strictly maintained. We assign code numbers to each participant so that data is never directly linked to individual identity, and we are interested in group results rather than the responses of particular individuals. Data are kept in our laboratory and are only viewed by the investigators. These data files are kept on our computer indefinitely. De-identified data may be used in future research and shared with other researchers without your additional consent. De-identified data may also be posted online when research results are published.
+                    </p>
+
+                    <p>
+                    If there is anything about the study or your participation that is unclear or that you do not understand, if you have questions or wish to report a research-related problem, you may contact the principal investigator, Brenden M. Lake at the Center for Data Science, 60 5th Ave., New York, NY, 10011, (212) 998-3059, brenden@nyu.edu. For questions about your rights as a research participant, you may contact the University Committee on Activities Involving Human Subjects, New York University, 665 Broadway, Suite 804, New York, NY 10012, at ask.humansubjects@nyu.edu or (212) 998-4808.
+                    </p>
+
+                    <p>
+                    <i>Please print a copy of this consent document to keep</i>
+                    </p>
+
+                    <button type="button" class="btn btn-default btn-sm" onClick="window.print();">
+                    <span class="glyphicon glyphicon-print"></span> Print a copy of this
+                    </button>
+                </div>
+
+                <hr />
+                <h4>Do you understand and consent to these terms?</h4>
+                <br />
+
+                <center>
+                    <button type="button" class="btn btn-primary btn-lg" onClick="window.location='/exp?hitId={{ hitid }}&assignmentId={{ assignmentid }}&workerId={{ workerid }}'">
+                    <span class="glyphicon glyphicon-ok"></span> I agree 
+                    </button>
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                    <button type="button" class="btn btn-danger btn-lg" onClick="onexit()">
+                    <span class="glyphicon glyphicon-ban-circle"></span> No thanks, I do not want to do this HIT
+                    </button>
+                </center>
+
+            </div>
+        </div>
+    </body>
+</html>
+

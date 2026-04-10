@@ -1,0 +1,145 @@
+<style>
+ul {
+    list-style-type: none;
+    margin:0;
+    padding:5px;
+    overflow:hidden;
+    text-align:left;
+}
+li {
+    float:left;
+    font-size:60px;
+}
+li.data_li {
+    font-size:30px;
+}
+li span {
+    display:block;
+    text-align:center;
+    text-decoration:none;
+}
+</style>
+<div id="container-exp">
+
+	<div id="debug"></div>
+	
+	<div id="div-trial" style="">
+
+		Remember that there may be multiple reasonable answers. If necessary, rely on your intuition to pick one.
+		<hr>
+
+		Pool (drag):
+		<ul id="source_array_1" style="width:250px;height:70px;background:#eee;">
+		</ul>
+
+		<br>
+		Command: <strong><span id="command_1"></span></strong>
+		<br>
+		Response to command:
+		<button id="reset_button_1">
+	    	Reset
+	    </button>
+		<ul class="response_array" id="response_array_1" style="border-style:solid;width:75%;height:70px;">
+		</ul>
+
+		<br>
+		Command: <strong><span id="command_2"></span></strong>
+		<br>
+		Response to command:
+		<button id="reset_button_2">
+	    	Reset
+	    </button>
+		<ul class="response_array" id="response_array_2" style="border-style:solid;width:75%;height:70px;">
+		</ul>
+
+		<br>
+		Command: <strong><span id="command_3"></span></strong>
+		<br>
+		Response to command:
+		<button id="reset_button_3">
+	    	Reset
+	    </button>
+		<ul class="response_array" id="response_array_3" style="border-style:solid;width:75%;height:70px;">
+		</ul>
+
+		<br>
+		Command: <strong><span id="command_4"></span></strong>
+		<br>
+		Response to command:
+		<button id="reset_button_4">
+	    	Reset
+	    </button>
+		<ul class="response_array" id="response_array_4" style="border-style:solid;width:75%;height:70px;">
+		</ul>
+
+		<br>
+		Pool (drag):
+		<ul id="source_array_2" style="width:250px;height:70px;background:#eee;">
+		</ul>
+
+		<br>
+		Command: <strong><span id="command_5"></span></strong>
+		<br>
+		Response to command:
+		<button id="reset_button_5">
+	    	Reset
+	    </button>
+		<ul class="response_array" id="response_array_5" style="border-style:solid;width:75%;height:70px;">
+		</ul>
+
+		<br>
+		Command: <strong><span id="command_6"></span></strong>
+		<br>
+		Response to command:
+		<button id="reset_button_6">
+	    	Reset
+	    </button>
+		<ul class="response_array" id="response_array_6" style="border-style:solid;width:75%;height:70px;">
+		</ul>
+
+		<br>
+		Command: <strong><span id="command_7"></span></strong>
+		<br>
+		Response to command:
+		<button id="reset_button_7">
+	    	Reset
+	    </button>
+		<ul class="response_array" id="response_array_7" style="border-style:solid;width:75%;height:70px;">
+		</ul>
+
+		<div id="container-submit" style="">
+			<br>
+			<span id="submit_message"></span>
+			<button id="submit_button" class="btn btn-primary btn-lg continue">
+		    	<!-- Submit (or &lt;space&gt;) -->
+		    	Submit
+		    </button>
+		</div>
+
+	</div>
+
+	<div id="div-confirm" style="display:none;">
+		Here is the list of your responses. Please check them for accuracy:
+		<table id="table-example">
+		</table>
+		
+		<br>
+		Do you want to edit your responses?
+		<br>
+		<button id="edit_button" class="btn btn-primary btn-lg continue">
+    		<!-- Continue (or &lt;space&gt;) -->
+    		Edit responses
+    	</button>
+
+    	<br>
+
+    	<br>
+		If you are satisfied with your responses, please continue to the final survey.
+		<br>
+		<button id="to_survey_button" class="btn btn-primary btn-lg continue">
+    		<!-- Continue (or &lt;space&gt;) -->
+    		Continue to survey
+    	</button>
+	</div>
+
+</div>
