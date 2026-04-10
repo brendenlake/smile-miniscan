@@ -125,11 +125,11 @@ timeline.pushSeqView({
   },
 })
 
-// Demographic survey
-timeline.pushSeqView({
-  name: 'demograph',
-  component: DemographicSurveyView,
-})
+// // Demographic survey
+// timeline.pushSeqView({
+//   name: 'demograph',
+//   component: DemographicSurveyView,
+// })
 
 // Window sizer
 timeline.pushSeqView({
