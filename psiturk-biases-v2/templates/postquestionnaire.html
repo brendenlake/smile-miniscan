@@ -1,0 +1,84 @@
+<div id="container-questionnaire">
+    <h1>Task Complete</h1>
+
+    <hr />
+
+    <p>You are finished!  Thank you for your contributions to science. You will be eligible for full payment once you answer the following questions.</p>
+
+    <div class="instructions well">
+        <form id="postquiz" action="debrief" method="post">
+
+            <div class="row question">
+                <div class="col-md-8">
+                    What was your general strategy for completing the task?<br>
+                    <textarea id="survey_txt_strategy" rows="5" cols="50" class="survey_txt"></textarea><br>
+                </div>
+            </div>
+
+            <div class="row question">
+                <div class="col-md-8">
+                    Did you use any external aids to help with the task (note taking, pen and paper, taking a screen shot, etc.)? 
+                    It's okay if you did. Please answer honestly -- you will receive full payment either way.
+                </div>
+                <div class="col-md-4">
+                    <select id="external_aid" name="external_aid">
+                        <option value="NA" SELECTED>ENTER RESPONSE</option>
+                        <option value="Yes">Yes</option>
+                        <option value="No">No</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="row question">
+                <div class="col-md-8">
+                    Were the instructions for the task clear?
+                </div>
+                <div class="col-md-4">
+                    <select id="clarity" name="clarity">
+                        <option value="NA" SELECTED>ENTER RESPONSE</option>
+                        <option value="1">Very clear</option>
+                        <option value="0">Moderately clear</option>
+                        <option value="-1">Not clear</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="row question">
+                <div class="col-md-8">
+                    Was the experimental display too large for the size of your screen?
+                </div>
+                <div class="col-md-4">
+                    <select id="screensize" name="screensize">
+                        <option value="NA" SELECTED>ENTER RESPONSE</option>
+                        <option value="Yes">Yes</option>
+                        <option value="No">No</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="row question">
+                <div class="col-md-8">
+                     Did you have any technical problems with the site? Please describe:<br>
+                    <textarea id="survey_txt_trouble" rows="5" cols="50" class="survey_txt"></textarea><br>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <hr>
+
+    <div class="instructionsnav">
+        <div class="row">
+            <div class="col-xs-2">
+            </div>
+            <div class="col-xs-7">
+            </div>
+            <div class="col-xs-3">
+                <button type="button" id="next" value="next" class="btn btn-primary btn-lg continue">
+                    Continue <span class="glyphicon glyphicon-arrow-right"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+</div>
