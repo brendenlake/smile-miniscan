@@ -9,7 +9,7 @@ A previous version of this experiment lives in `psiturk-example-v2/` (at the rep
 - HTML files displaying the different steps of the experiment are in `psiturk-example-v2/templates/`
 - The main script controlling the experiment is `psiturk-example-v2/static/js/task.js`
 
-**Do not modify any code in `psiturk-example-v2/`.** It is read-only reference material.
+**Do not modify any code in `psiturk-example-v2/`. except for serve.js** It is read-only reference material.
 
 **For detailed docs, read files in `docs/` folder** (e.g., `docs/coding/steps.md`, `docs/styling/layouts.md`).
 
