@@ -29,7 +29,7 @@ import {
   actionsToColors,
 } from './scanLogic'
 
-import { subtasks_train, subtasks_test, stims4_train, stims4_test } from './scanStimuli'
+import { subtasks_train, subtasks_test, stims1_test, stims2_test, stims3_test, stims4_train, stims4_test } from './scanStimuli'
 
 const api = useViewAPI()
 
@@ -52,7 +52,6 @@ const _testSeed = getTestSeed()
 const debugMappingVisible = ref(false)
 function applyTestSeed(seedValue) {
   if (seedValue === null) return
-
   let s = parseInt(seedValue, 10)
   Math.random = function () {
     s |= 0; s = (s + 0x6D2B79F5) | 0
@@ -61,7 +60,6 @@ function applyTestSeed(seedValue) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296
   }
 }
-
 applyTestSeed(_testSeed)
 
 const currentSeedSignature = getScanSeedSignature({
@@ -69,8 +67,17 @@ const currentSeedSignature = getScanSeedSignature({
   useSeed: api.store.browserPersisted.useSeed,
   seedID: api.store.getSeedID,
 })
-const SCAN_RANDOMIZATION_VERSION = 'underscore-1.13.8-v2'
+const SCAN_RANDOMIZATION_VERSION = 'underscore-1.13.8-v5'
 const SCAN_DEBUG_BUILD = '2026-04-09-epoch-fix'
+
+function getStageId(stage) {
+  const firstTest = stage?.test?.[0]?.[0]
+  if (firstTest === stims1_test[0][0]) return 1
+  if (firstTest === stims2_test[0][0]) return 2
+  if (firstTest === stims3_test[0][0]) return 3
+  if (firstTest === stims4_test[0][0]) return 4
+  return null
+}
 
 // ---------------------------------------------------------------------------
 // Persistent state: grounding, stage order, pool colors, current stage index.
@@ -79,35 +86,32 @@ const SCAN_DEBUG_BUILD = '2026-04-09-epoch-fix'
 function initPersist() {
   // Reset before the SCAN-specific setup so framework/library startup cannot
   // perturb the seeded stream.
-  applyTestSeed(_testSeed)
 
   // Match psiturk's global initialization sequence (precompute_grounding handles per-stage):
-  // 1. scan_stimuli_simple.js: colors_scan = _.shuffle(colors_scan)
-  //    serve.js injects scanSeedScript BEFORE scan_stimuli_simple.js loads, so this
-  //    shuffle is seeded when ?seed=N is used (not unseeded as originally assumed).
-  // 2. task.js: apply_test_seed(get_test_seed())  — re-seeds with the same seed
-  // 3. task.js: myzip = _.shuffle(myzip)  [stage order]
-  // 4. task.js: colors = _.shuffle(colors_scan)
-  // 5. task.js: words  = _.shuffle(words_scan)
-  // 6. task.js: colors_post = _.shuffle(colors)
+  // 1. task.js: apply_test_seed()  [matches applyTestSeed above]
+  // 2. task.js: myzip = _.shuffle(myzip)  [stage order]
+  // 3. task.js: colors = _.shuffle(colors_scan)
+  // 4. task.js: words  = _.shuffle(words_scan)
+  // 5. task.js: colors_post = _.shuffle(colors)
   // Per-stage constructor draws (7-9) and epoch draw (10) happen lazily in initStageState/next().
-  const colorsScan = _.shuffle(COLORS)             // #1 — seeded (seed already applied above)
-  applyTestSeed(_testSeed)                         // #2 — re-seed (matches task.js apply_test_seed)
-  const stageOrder = buildStageOrder(subtasks_train, subtasks_test, stims4_train, stims4_test) // #3
-  const colors = _.shuffle(colorsScan)             // #4
-  const words = _.shuffle(WORDS)                   // #5
-  const colors_post = _.shuffle(colors)            // #6
+  applyTestSeed(_testSeed)                         
+  const stageOrder = buildStageOrder(subtasks_train, subtasks_test, stims4_train, stims4_test)
+  const colors = _.shuffle(COLORS)             
+  const mappingColors = [...COLORS]
+  const words = _.shuffle(WORDS)               
+  const colors_post = _.shuffle(colors)        
   const debugStageInfo = []
   const initialDebugPools = {
-    colorsScan: [...colorsScan],
     colors: [...colors],
+    mappingColors: [...mappingColors],
     words: [...words],
     colorsPost: [...colors_post],
   }
 
-  // createGrounding now processes per-stage, consuming PRNG draws in the
-  // same order as psiturk's ScanExperiment constructors.
-  const grounding = createGrounding(stageOrder, words, colors, debugStageInfo)
+  // Live psiturk traces show output mappings are consumed from the original
+  // colors_scan order, while the displayed response pool uses colors_post from
+  // the seeded shuffle above.
+  const grounding = createGrounding(stageOrder, words, mappingColors, debugStageInfo)
 
   api.persist.scan = {
     grounding,
@@ -145,7 +149,7 @@ if (_testSeed !== null) {
 }
 
 const p = api.persist.scan
-const { input_dict, output_dict, output_dict_reverse } = p.grounding
+const { input_dict, output_dict, output_dict_reverse, stageStimSnapshots } = p.grounding
 const colors_post = p.colors_post
 const debugPools = p.debugPools || { colorsScan: [], colors: [], words: [], colorsPost: [] }
 const debugStageInfo = p.debugStageInfo || []
@@ -159,12 +163,16 @@ if (_testSeed !== null) {
     randomizationVersion: SCAN_RANDOMIZATION_VERSION,
     debugBuild: SCAN_DEBUG_BUILD,
     debugPools,
+    colorsPost: colors_post,
     stageOrder: p.stageOrder.map((stage, index) => ({
       index,
+      stageId: getStageId(stage),
       firstTrain: stage.train[0]?.[0],
       firstTest: stage.test[0]?.[0],
       flexThreshold: stage.flexThreshold,
     })),
+    debugStageInfo,
+    stageStimSnapshots,
     input_dict,
     output_dict,
     output_dict_reverse,
@@ -270,8 +278,9 @@ function next() {
     cycleCount += 1
     epochCorrect = 0
     epochCount = 0
-    stims_orig_epoch = removeSingletons([...stims_train_shuffled])
-    stims_epoch = _.shuffle(stims_orig_epoch)
+    // stims_orig_epoch = removeSingletons([...stims_train_shuffled])
+    // stims_epoch = _.shuffle(stims_orig_epoch)
+    stims_epoch = stageStimSnapshots[p.stageIdx].epochStims
 
     // Show study table (first time or after failure)
     uiPhase.value = 'study_table'
@@ -315,6 +324,7 @@ function nextTest() {
   currentStim = stims_test.shift()
   currentStimWords.value = convertCommandToWords(currentStim[0], input_dict)
   stage = 'test'
+  testMsg.value = ''
   wordon = Date.now()
   const totalTest = currentStage().test.length
   const doneTest = totalTest - stims_test.length
@@ -334,11 +344,9 @@ function initStageState() {
   epochCount = 0
   stims_epoch = []
 
-  // Mirror psiturk ScanExperiment constructor's three shuffles (draws 7, 8, 9).
-  // Must happen in this exact order to keep the seeded PRNG stream in sync.
-  _.shuffle([...currentStage().train, ...currentStage().test]) // draw 7: discard
-  stims_train_shuffled = _.shuffle([...currentStage().train])  // draw 8: epoch basis
-  stims_test = _.shuffle([...currentStage().test])             // draw 9: test order
+  const stageSnapshot = stageStimSnapshots[p.stageIdx]
+  // stims_train_shuffled = stageSnapshot.train.map((stim) => [...stim]) // copy to avoid mutating the original
+  stims_test = stageSnapshot.test.map((stim) => [...stim])
 
   isRepeatCycle.value = false
   repeatMsg.value = ''

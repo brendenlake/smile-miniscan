@@ -36,12 +36,12 @@ export function getScanSeedSignature({ urlSeed = null, useSeed = false, seedID =
  *
  * @param {Array} allStims - All [input, output] pairs from every stage
  * @param {string[]} words  - Shuffled copy of WORDS to draw from
- * @param {string[]} colors - Shuffled copy of COLORS to draw from
+ * @param {string[]} colors - Color pool to draw output mappings from
  * @returns {{ input_dict, output_dict, output_dict_reverse }}
  */
 /**
  * Build input/output grounding by processing each stage in order, exactly
- * mirroring psiturk's ScanExperiment constructor logic:
+ * mirroring psiturk's live ScanExperiment constructor logic:
  *   stims = _.shuffle(train.concat(test))
  *   stims_train = _.shuffle(stims_train)
  *   stims_test  = _.shuffle(stims_test)
@@ -49,22 +49,38 @@ export function getScanSeedSignature({ urlSeed = null, useSeed = false, seedID =
  *   output_symbols = Array.from(new Set(...)); _.shuffle(output_symbols)
  *
  * This replicates the exact PRNG draw counts per stage, so a seeded
- * Math.random produces the same primitive assignments as psiturk.
+ * Math.random produces the same primitive assignments as psiturk. Live traces
+ * show the mapping color pool is consumed from the original colors_scan order.
  *
  * @param {Array<{train, test}>} stageOrder - stages in presentation order
  * @param {string[]} words  - shuffled word pool (mutated via shift())
- * @param {string[]} colors - shuffled color pool (mutated via shift())
+ * @param {string[]} colors - mapping color pool (mutated via shift())
+ * @returns {{
+ *   input_dict: Object,
+ *   output_dict: Object,
+ *   output_dict_reverse: Object,
+ *   stageStimSnapshots: Array<{ stims: Array, train: Array, test: Array }>
+ * }}
  */
 export function createGrounding(stageOrder, words, colors, debugStages = null) {
   const input_dict = {}
   const output_dict = {}
   const output_dict_reverse = {}
+  const stageStimSnapshots = []
+
+  // In the live psiturk browser run, the PRNG advances once between the
+  // global-init shuffles and the first ScanExperiment constructor. Consume the
+  // same one-off draw here so the per-stage constructor shuffles align.
+  Math.random()
 
   for (const [stageIndex, stage] of stageOrder.entries()) {
-    // Mirror precompute_grounding's three stims shuffles (draws discarded, matching psiturk)
+    // Mirror psiturk ScanExperiment constructor draws 1-3:
+    //   stims = _.shuffle(train.concat(test))
+    //   stims_train = _.shuffle(stims_train)   ← result used for epoch and test
+    //   stims_test  = _.shuffle(stims_test)    ← result used for test
     const stims = _.shuffle([...stage.train, ...stage.test])
-    _.shuffle(stage.train)
-    _.shuffle(stage.test)
+    const shuffledTrain = _.shuffle([...stage.train])
+    const shuffledTest = _.shuffle([...stage.test])
 
     // Collect input symbols in shuffled-stim encounter order, then shuffle
     const inputSymbols = []
@@ -101,10 +117,20 @@ export function createGrounding(stageOrder, words, colors, debugStages = null) {
       }
     }
 
-    // Mirror precompute_grounding lines 196-199 in task.js: result discarded, but
-    // consumes PRNG draws to keep the seeded stream in sync with psiturk.
-    const epochStims = stage.train.filter((s) => s[0].trim().split(' ').length > 1)
-    _.shuffle(epochStims)
+    // Mirror psiturk draw 6: ScanExperiment constructor calls next() at the end,
+    // which shuffles the first epoch before returning. This consumes PRNG draws
+    // that must be accounted for here so stages 2+ grounding uses the correct
+    // PRNG position. (Assumes first-try pass; failures add more epoch draws at
+    // runtime after all grounding is already computed.)
+    const epochStims = shuffledTrain.filter((s) => s[0].trim().split(' ').length > 1)
+    const shuffledEpochStims = _.shuffle(epochStims)
+
+    stageStimSnapshots.push({
+      stims: stims.map((stim) => [...stim]),
+      train: shuffledTrain.map((stim) => [...stim]),
+      test: shuffledTest.map((stim) => [...stim]),
+      epochStims: shuffledEpochStims.map((stim) => [...stim]),
+    })
   }
 
   // Remaining colors map to 'undefined_action'
@@ -112,7 +138,7 @@ export function createGrounding(stageOrder, words, colors, debugStages = null) {
     output_dict_reverse[color] = 'undefined_action'
   }
 
-  return { input_dict, output_dict, output_dict_reverse }
+  return { input_dict, output_dict, output_dict_reverse, stageStimSnapshots }
 }
 
 /**
