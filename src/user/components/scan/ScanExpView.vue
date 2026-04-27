@@ -67,7 +67,7 @@ const currentSeedSignature = getScanSeedSignature({
   useSeed: api.store.browserPersisted.useSeed,
   seedID: api.store.getSeedID,
 })
-const SCAN_RANDOMIZATION_VERSION = 'underscore-1.13.8-v5'
+const SCAN_RANDOMIZATION_VERSION = 'underscore-1.13.8-v6'
 const SCAN_DEBUG_BUILD = '2026-04-09-epoch-fix'
 
 function getStageId(stage) {
@@ -108,10 +108,9 @@ function initPersist() {
     colorsPost: [...colors_post],
   }
 
-  // Live psiturk traces show output mappings are consumed from the original
-  // colors_scan order, while the displayed response pool uses colors_post from
-  // the seeded shuffle above.
-  const grounding = createGrounding(stageOrder, words, mappingColors, debugStageInfo)
+  const grounding = createGrounding(stageOrder, words, colors, debugStageInfo)
+  // If we want to produce same output as cloned psiturk code, we would use mappingColors here.
+  // const grounding = createGrounding(stageOrder, words, mappingColors, debugStageInfo)
 
   api.persist.scan = {
     grounding,
@@ -248,10 +247,10 @@ let stage = ''             // 'response_train' | 'feedback_train' | 'test'
 let wordon = null
 
 // ---------------------------------------------------------------------------
-// next() — mirrors task.js next(). Called to advance the quiz phase.
+// next() — mirrors task.js next(). Called to advance the study phase.
 // ---------------------------------------------------------------------------
-function next() {
-  if (stims_epoch.length === 0) {
+function next() { // study phase only
+  if (stims_epoch.length === 0) { // if cycle is over, check pass/fail and either advance to test or start a new cycle
     if (cycleCount > 0) {
       // End of a cycle — check pass/fail
       if (hasPassed(epochCount, epochCorrect, currentStage().flexThreshold, cycleCount)) {
@@ -278,9 +277,9 @@ function next() {
     cycleCount += 1
     epochCorrect = 0
     epochCount = 0
-    // stims_orig_epoch = removeSingletons([...stims_train_shuffled])
+    stims_orig_epoch = stageStimSnapshots[p.stageIdx].epochStims
     // stims_epoch = _.shuffle(stims_orig_epoch)
-    stims_epoch = stageStimSnapshots[p.stageIdx].epochStims
+    stims_epoch = [...stims_orig_epoch]
 
     // Show study table (first time or after failure)
     uiPhase.value = 'study_table'
@@ -289,7 +288,7 @@ function next() {
     return
   }
 
-  // Show next quiz trial
+  // cycle is not over, so show next quiz trial
   currentStim = stims_epoch.shift()
   currentStimWords.value = convertCommandToWords(currentStim[0], input_dict)
   stage = 'response_train'
@@ -321,6 +320,7 @@ function nextTest() {
     return
   }
 
+  // stage is not complete, so show next test trial
   currentStim = stims_test.shift()
   currentStimWords.value = convertCommandToWords(currentStim[0], input_dict)
   stage = 'test'
@@ -383,18 +383,21 @@ function handleSubmit() {
   const isCorrect = absResponse === currentStim[1]
 
   // Record data — matches task.js psiTurk.recordTrialData({...})
-  api.stepData.phase = stage
-  api.stepData.abs_input = currentStim[0]
-  api.stepData.raw_input = currentStimWords.value
-  api.stepData.abs_target = currentStim[1]
-  api.stepData.raw_target = actionsToColors(currentStim[1], output_dict)
-  api.stepData.abs_response = absResponse
-  api.stepData.raw_response = rawResponse
-  api.stepData.correct = isCorrect
-  api.stepData.cycle = stage === 'test' ? -1 : cycleCount
-  api.stepData.learning_stage = p.stageIdx
-  api.stepData.rt = rt
-  api.recordStep()
+  // Note: ScanExpView manages its own trial queue outside Smile's steps system,
+  // so we call recordPageData() directly rather than using api.stepData/recordStep().
+  api.recordPageData({
+    phase: stage,
+    abs_input: currentStim[0],
+    raw_input: currentStimWords.value,
+    abs_target: currentStim[1],
+    raw_target: actionsToColors(currentStim[1], output_dict),
+    abs_response: absResponse,
+    raw_response: rawResponse,
+    correct: isCorrect,
+    cycle: stage === 'test' ? -1 : cycleCount,
+    learning_stage: p.stageIdx,
+    rt,
+  })
 
   if (stage === 'response_train') {
     if (isCorrect) epochCorrect += 1
@@ -410,13 +413,14 @@ function handleSubmit() {
     }
     stage = 'feedback_train'
     enableDragSort(false)
-  } else if (stage === 'test') {
+    // do not advance, since we want participant to read feedback and then click "Continue"
+  } else if (stage === 'test') { // go to next test trial
     // No feedback in test — advance directly
     nextTest()
   }
 }
 
-// "Continue" button after quiz feedback — matches task.js continue_handler()
+// "Continue" button after answering a study question — matches task.js continue_handler()
 function handleContinue() {
   clearResponse()
   $('#feedback_array').html('')

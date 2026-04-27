@@ -4,12 +4,17 @@ The experiment is outlined in the following paper
 <br>
 Lake, B. M. and Baroni, M. (2023). Human-like systematic generalization through a meta-learning neural network. Nature, 623, 115-121.
 
-To run in smile, please install smile as descrbied in the docs. then run:
+To run in Smile, please install smile as descrbied in the docs. then run:
 <br>
 `npm run dev`
 <br>
 To run with a specific seed, add an argument to the url such as:<br>
 `http://localhost:3020/brendenlake/smile-miniscan/main/#/experiment?seed=42`
+
+To download the data, please run:
+<br>
+`npm run getdata`
+<br>
 
 To run the original code in the 2023 paper, run as:
 <br>
