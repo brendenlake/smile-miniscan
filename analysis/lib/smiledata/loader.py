@@ -26,7 +26,7 @@ def load_json(path: str | Path) -> SmileDataset:
     with open(path, "r", encoding="utf-8") as f:
         data = json.load(f)
 
-    participants = [Participant(p) for p in data]
+    participants = [Participant({**p["data"], "id": p["id"]}) for p in data]
     return SmileDataset(participants)
 
 
@@ -46,7 +46,7 @@ def load_folder(folder: str | Path, pattern: str = "*.json") -> SmileDataset:
     for json_file in sorted(folder.glob(pattern)):
         with open(json_file, "r", encoding="utf-8") as f:
             data = json.load(f)
-        all_participants.extend([Participant(p) for p in data])
+        all_participants.extend([Participant({**p["data"], "id": p["id"]}) for p in data])
 
     return SmileDataset(all_participants)
 
