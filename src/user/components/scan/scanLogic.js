@@ -117,12 +117,16 @@ export function createGrounding(stageOrder, words, colors, debugStages = null) {
       }
     }
 
-    // Mirror psiturk draw 6: ScanExperiment constructor calls next() at the end,
-    // which shuffles the first epoch before returning. This consumes PRNG draws
-    // that must be accounted for here so stages 2+ grounding uses the correct
-    // PRNG position. (Assumes first-try pass; failures add more epoch draws at
-    // runtime after all grounding is already computed.)
-    const epochStims = shuffledTrain.filter((s) => s[0].trim().split(' ').length > 1)
+    // Mirror the study-table side effect in task.js: switch_example_table()
+    // sorts stims_train in place before next() builds the first epoch from it.
+    const sortedTrainForEpoch = [...shuffledTrain].sort((a, b) => {
+      const diff = a[0].trim().split(' ').length - b[0].trim().split(' ').length
+      return diff !== 0 ? diff : a[0].localeCompare(b[0])
+    })
+
+    // Mirror psiturk draw 6: next() filters the sorted train list down to
+    // non-singletons, then shuffles that epoch before showing the first trial.
+    const epochStims = sortedTrainForEpoch.filter((s) => s[0].trim().split(' ').length > 1)
     const shuffledEpochStims = _.shuffle(epochStims)
 
     stageStimSnapshots.push({
