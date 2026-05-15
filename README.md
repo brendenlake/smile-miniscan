@@ -27,6 +27,9 @@ To run tests to compare the two code bases:
 <br>
 `npx vitest run tests/vitest/user/scan/scanLogic.test.js`
 
+To run on the server:
+
+
 ## Smile
 
 This repo uses Smile. The Smile project is a new way to develop rich and interactive online experiments. Smile prioritizes modularity and reusability. Unlike tools that cater to non-programmers, Smile is designed to help reasonably competent programmers accomplish more in less time.
