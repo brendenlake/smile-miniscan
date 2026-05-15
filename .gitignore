@@ -59,4 +59,5 @@ psiturk-example-v2
 data
 expressions.txt
 *ipynb_checkpoints
-*.ipynb_checkpoints
+*.ipynb
+mlc_analyze-checkpoint.ipynb

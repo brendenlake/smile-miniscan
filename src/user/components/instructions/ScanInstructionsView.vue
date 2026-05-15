@@ -176,7 +176,7 @@ function demoSubmit() {
         <p>
           Please only use the information on the screen to complete the task. Do not take notes or
           use external aids to help with the task (do not use pen and paper, take a screen shot,
-          etc.). This is important for the scientific validity of the study.
+          etc.). Do not use an AI assistant like ChatGPT. This is important for the scientific validity of the study.
         </p>
       </div>
 

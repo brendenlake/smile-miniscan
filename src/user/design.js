@@ -61,6 +61,9 @@ import InformedConsentText from './components/InformedConsentText.vue'
 api.setAppComponent('informed_consent_text', InformedConsentText)
 
 // 5. No between-subjects conditions for this experiment
+// api.randomAssignCondition({ grammar_assignment: ['1', '2', '3', '4', '6', '7', '8', '9'] })
+api.randomAssignCondition({ grammar_assignment: ['12', '18', '41', '44', '55', '126', '150', '163'] })
+api.getConditionByName('grammar_assignment')
 
 // 6. Define the timeline
 

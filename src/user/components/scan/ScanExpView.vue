@@ -29,9 +29,12 @@ import {
   actionsToColors,
 } from './scanLogic'
 
-import { subtasks_train, subtasks_test, stims1_test, stims2_test, stims3_test, stims4_train, stims4_test } from './scanStimuli'
-
 const api = useViewAPI()
+
+const _grammars = import.meta.glob('./miniscan_grammar_*.js', { eager: true })
+const { subtasks_train, subtasks_test, stims1_test, stims2_test, stims3_test, stims4_train, stims4_test } =
+  _grammars[`./miniscan_grammar_${api.getConditionByName('grammar_assignment')}.js`]
+
 
 // ---------------------------------------------------------------------------
 // Seeded PRNG for testing — override Math.random when ?seed=N is in the URL.

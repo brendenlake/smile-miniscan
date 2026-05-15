@@ -12,6 +12,7 @@ if (!api.persist.isDefined('postquestionnaire')) {
   api.persist.postquestionnaire = reactive({
     survey_txt_strategy: '',
     external_aid: 'NA',
+    ai_aid: 'NA',
     clarity: 'NA',
     screensize: 'NA',
     survey_txt_trouble: '',
@@ -23,7 +24,7 @@ const errorMsg = reactive({ text: '' })
 
 function finish() {
   // Require all dropdowns to be answered
-  if (form.external_aid === 'NA' || form.clarity === 'NA' || form.screensize === 'NA') {
+  if (form.ai_aid === 'NA' || form.external_aid === 'NA' || form.clarity === 'NA' || form.screensize === 'NA') {
     errorMsg.text = 'Please answer all questions before continuing.'
     return
   }
@@ -65,10 +66,23 @@ function finish() {
       <div class="question mb-5 flex items-start gap-6">
         <label class="font-medium flex-1">
           Did you use any external aids to help with the task (note taking, pen and paper, taking a
-          screen shot, etc.)? It's okay if you did. Please answer honestly — you will receive full
+          screen shot, etc.)? It's okay if you did. Please answer honestly for the sake of the study — you will receive full
           payment either way.
         </label>
         <select id="external_aid" v-model="form.external_aid" class="border rounded p-1 mt-1">
+          <option value="NA">ENTER RESPONSE</option>
+          <option value="Yes">Yes</option>
+          <option value="No">No</option>
+        </select>
+      </div>
+
+      <!-- AI assistance -->
+      <div class="question mb-5 flex items-start gap-6">
+        <label class="font-medium flex-1">
+          Did you use an AI assistant to help with the task? (e.g., ChatGPT). It's okay if you did. 
+          Please answer honestly for the sake of the study — you will receive full payment either way.
+        </label>
+        <select id="ai_aid" v-model="form.ai_aid" class="border rounded p-1 mt-1">
           <option value="NA">ENTER RESPONSE</option>
           <option value="Yes">Yes</option>
           <option value="No">No</option>

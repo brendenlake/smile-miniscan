@@ -44,11 +44,16 @@ function init() {
   // randomize questions and add to stepper
   qs = props.randomizeQandA ? getRandomizedQuestions() : props.questions
 
-  const sections = api.steps.append([{ id: 'pages' }, { id: 'feedback' }])
+  // Guard against re-running on component remount (e.g. after quiz retry sends participant
+  // back to instructions). The stepper is cached in browserEphemeral so it survives the
+  // navigation, but init() would append duplicate steps if called again.
+  if (!api.hasSteps()) {
+    const sections = api.steps.append([{ id: 'pages' }, { id: 'feedback' }])
 
-  sections[0].append(qs)
+    sections[0].append(qs)
 
-  sections[1].append([{ id: 'success' }, { id: 'retry' }]) // add to additional pages
+    sections[1].append([{ id: 'success' }, { id: 'retry' }]) // add to additional pages
+  }
 
   if (!api.persist.isDefined('attempts')) {
     api.persist.attempts = 1
@@ -103,9 +108,10 @@ api.setAutofill(autofill)
  */
 const quizCorrect = computed(() => {
   // Get all questions from all pages using queryStepData with a path filter
+  // Honeypot questions (honeypot: true) are excluded from pass/fail — their answers are only recorded for analysis.
   const allQuestions = api.queryStepData('pages*').flatMap((page) => page.questions || [])
 
-  return allQuestions.every((question) => {
+  return allQuestions.filter((q) => !q.honeypot).every((question) => {
     if (Array.isArray(question.correctAnswer)) {
       // For multiselect, check if arrays have same values regardless of order
       const selectedAnswers = Array.isArray(question.answer) ? question.answer : [question.answer]
@@ -128,6 +134,7 @@ const currentPageComplete = computed(() => {
     return false
   }
   return api.stepData.questions.every((question) => {
+    if (question.honeypot) return true
     if ('answer' in question) {
       // For multiselect, ensure at least one option is selected
       if (question.multiSelect) {
@@ -218,39 +225,56 @@ init()
       <template #right>
         <!-- Quiz questions container -->
         <div class="border border-border text-left bg-muted p-6 rounded-lg">
-          <div
-            v-for="(question, index) in api.stepData.questions"
-            :key="question.id"
-            :class="{ 'mt-0': index === 0, 'mt-9': index > 0 }"
-            class="mb-6"
-          >
-            <label class="block text-md font-semibold text-foreground mb-2">
-              {{ question.question }}
-            </label>
-
-            <!-- Multi-select checkbox -->
-            <div v-if="question.multiSelect" class="mb-9">
-              <MultiSelect
-                :options="question.answers"
-                v-model="api.stepData.questions[index].answer"
-                variant="success"
-                help="Select all that apply"
-                size="lg"
-              />
+          <template v-for="(question, index) in api.stepData.questions" :key="question.id">
+            <!-- Honeypot: positioned off-screen so humans cannot see or interact with it.
+                 Any answer recorded here indicates a non-human participant. -->
+            <div
+              v-if="question.honeypot"
+              aria-hidden="true"
+              style="position: absolute; left: -9999px; top: auto; width: 1px; height: 1px; overflow: hidden;"
+            >
+              <label class="block text-md font-semibold text-foreground mb-2">{{ question.question }}</label>
+              <Select v-model="api.stepData.questions[index].answer">
+                <SelectTrigger tabindex="-1"><SelectValue placeholder="Select an option" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem v-for="answer in question.answers" :key="answer" :value="answer">{{ answer }}</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
-            <!-- Single select dropdown -->
-            <Select v-else v-model="api.stepData.questions[index].answer">
-              <SelectTrigger class="w-full bg-background dark:bg-background text-base">
-                <SelectValue placeholder="Select an option" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem v-for="answer in question.answers" :key="answer" :value="answer">
-                  {{ answer }}
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+            <div
+              v-else
+              :class="{ 'mt-0': index === 0, 'mt-9': index > 0 }"
+              class="mb-6"
+            >
+              <label class="block text-md font-semibold text-foreground mb-2">
+                {{ question.question }}
+              </label>
+
+              <!-- Multi-select checkbox -->
+              <div v-if="question.multiSelect" class="mb-9">
+                <MultiSelect
+                  :options="question.answers"
+                  v-model="api.stepData.questions[index].answer"
+                  variant="success"
+                  help="Select all that apply"
+                  size="lg"
+                />
+              </div>
+
+              <!-- Single select dropdown -->
+              <Select v-else v-model="api.stepData.questions[index].answer">
+                <SelectTrigger class="w-full bg-background dark:bg-background text-base">
+                  <SelectValue placeholder="Select an option" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem v-for="answer in question.answers" :key="answer" :value="answer">
+                    {{ answer }}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </template>
 
           <hr class="border-border my-6" />
 
