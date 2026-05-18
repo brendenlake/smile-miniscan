@@ -28,7 +28,10 @@ To run tests to compare the two code bases:
 `npx vitest run tests/vitest/user/scan/scanLogic.test.js`
 
 To run on the server:
-run github action
+- push a commit
+- or run a github "action" to deploy
+
+Check slack server for web address
 
 ## Smile
 
