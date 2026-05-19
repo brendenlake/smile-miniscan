@@ -29,7 +29,7 @@ To run tests to compare the two code bases:
 
 To run on the server:
 - push a commit. this should send a slack message via webhook
-- or run a github "action" to deploy
+- or run a github "action" to deploy. but where is username stored?
 
 Check slack server for web address
 
