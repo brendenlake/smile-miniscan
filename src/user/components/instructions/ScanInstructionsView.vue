@@ -161,17 +161,10 @@ function demoSubmit() {
           </li>
         </ul>        
 
-        <!-- Original: After you complete the study and test phases, the next stage will begin.
-          Please be advised that the fourth stage is longer and more difficult than the previous three. -->
-
         <p>
           After you complete the study and test phases, the next stage will begin. Please be
           advised that the fourth stage is longer and more difficult than the previous three.
         </p>
-
-        <!-- Please only use the information on the screen to complete the task.
-         Do not take notes or use external aids to help with the task (do not use pen and paper, take a screen shot, etc.).
-         This is important for the scientific validity of the study. -->
 
         <p>
           Please only use the information on the screen to complete the task. Do not take notes or
