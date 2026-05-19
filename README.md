@@ -28,10 +28,9 @@ To run tests to compare the two code bases:
 `npx vitest run tests/vitest/user/scan/scanLogic.test.js`
 
 To run on the server:
-- push a commit. this should send a slack message via webhook
-- or run a github "action" to deploy. but where is username stored?
-
-Check slack server for web address
+- Push a commit. This should send a slack message via webhook.
+- Run a github "action" to deploy.
+- afterwards, check slack channel smile-deploy
 
 ## Smile
 
