@@ -3,7 +3,7 @@
 
 import _ from 'underscore'
 
-export { WORDS, COLORS } from './scanStimuli'
+export { WORDS, COLORS } from './miniscan_grammar_original'
 
 export const REDACTED_SYMBOL = 'REDACTED'
 export const MAX_CYCLES = 3

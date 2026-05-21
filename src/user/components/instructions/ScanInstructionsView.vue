@@ -13,7 +13,7 @@ window.$ = $
 
 import useViewAPI from '@/core/composables/useViewAPI'
 import { Button } from '@/uikit/components/ui/button'
-import { COLORS } from '@/user/components/scan/scanStimuli'
+import { COLORS } from '@/user/components/scan/miniscan_grammar_original'
 
 const api = useViewAPI()
 

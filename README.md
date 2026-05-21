@@ -16,6 +16,11 @@ To download the data, please run:
 `npm run getdata`
 <br>
 
+To analyzie the data, please run:
+<br>
+jupyter notebook multigrammar_analyze-checkpoint.ipynb
+</br>
+
 To run the original code in the 2023 paper, run as:
 <br>
 `node psiturk-example-v2/serve.js`
